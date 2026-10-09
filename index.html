@@ -1,501 +1,784 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EchoGuide – Spatial Navigation</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1018" />
+  <meta name="description" content="EchoGuide spatial navigation dashboard with live ESP32 radar telemetry and stereo audio steering." />
+  <title>EchoGuide | Spatial Navigation</title>
   <style>
     :root {
-      --bg: #090d16;
-      --card: #131b2e;
-      --accent: #00e5ff;
-      --green: #10b981;
-      --alert: #ff3366;
-      --text: #f1f5f9;
-      --text-dim: #7e8c9f;
+      color-scheme: dark;
+      --bg: #0a0f16;
+      --surface: #111923;
+      --surface-2: #151f2c;
+      --surface-3: #0d141e;
+      --line: rgba(167, 190, 213, .13);
+      --line-strong: rgba(167, 190, 213, .22);
+      --text: #edf4fa;
+      --muted: #8d9caf;
+      --subtle: #647488;
+      --cyan: #57e5f2;
+      --cyan-dark: #173b43;
+      --lime: #baf477;
+      --green: #76e3ad;
+      --red: #ff6e83;
+      --amber: #ffd18a;
+      --radius-lg: 22px;
+      --radius-md: 15px;
+      --shadow: 0 22px 55px rgba(0, 0, 0, .22);
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
+    * { box-sizing: border-box; }
+    html { min-width: 320px; scroll-behavior: smooth; }
     body {
-      background: var(--bg);
-      color: var(--text);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      margin: 0;
       min-height: 100vh;
-      padding: 16px;
-    }
-
-    header {
-      text-align: center;
-      margin-bottom: 14px;
-    }
-
-    h1 {
-      color: var(--accent);
-      font-size: 1.8rem;
-    }
-
-    p.sub {
-      color: var(--text-dim);
-      font-size: 0.85rem;
-      margin-top: 2px;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 480px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      padding: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    }
-
-    /* Radar Canvas */
-    .radar-wrapper {
-      position: relative;
-      width: 100%;
-      padding-top: 55%;
-    }
-
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      border-radius: 10px;
-      background: radial-gradient(circle at 50% 90%, #1a233a 0%, #0d121d 100%);
-    }
-
-    /* Steering Corridor Gauge */
-    .corridor-header {
-      text-align: center;
-      margin-top: 8px;
-    }
-
-    .corridor-label {
-      font-size: 1.3rem;
-      font-weight: 700;
+      background:
+        radial-gradient(ellipse at 14% 0%, rgba(43, 111, 127, .13), transparent 31rem),
+        radial-gradient(ellipse at 100% 40%, rgba(100, 129, 76, .07), transparent 28rem),
+        var(--bg);
       color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .gauge-track {
-      width: 100%;
-      height: 10px;
-      background: #1e293b;
-      border-radius: 5px;
-      position: relative;
-      margin: 14px 0 6px 0;
+    button, input { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, input:focus-visible + .upload-label, .upload-label:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 3px;
     }
 
+    .app-shell { width: min(1440px, 100%); margin: 0 auto; padding: 28px clamp(16px, 3vw, 42px) 24px; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 20px;
+      padding-bottom: 26px; border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand-mark {
+      width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center;
+      border: 1px solid rgba(87, 229, 242, .3); border-radius: 14px;
+      background: linear-gradient(145deg, rgba(87, 229, 242, .17), rgba(87, 229, 242, .035));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .brand-mark svg { width: 25px; height: 25px; }
+    .brand-name { font-size: 1.08rem; font-weight: 750; letter-spacing: -.035em; }
+    .brand-name span { color: var(--cyan); }
+    .brand-sub { margin-top: 3px; color: var(--muted); font-size: .76rem; letter-spacing: .015em; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .environment-tag, .connection-pill {
+      display: inline-flex; align-items: center; gap: 9px; white-space: nowrap;
+      padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(17, 25, 35, .8); color: var(--muted); font-size: .76rem; font-weight: 600;
+    }
+    .pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--subtle); box-shadow: 0 0 0 4px rgba(100, 116, 136, .12); }
+    .connection-pill.connected { color: var(--green); border-color: rgba(118, 227, 173, .22); }
+    .connection-pill.connected .pill-dot { background: var(--green); box-shadow: 0 0 0 4px rgba(118, 227, 173, .12); }
+
+    .page-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; padding: 30px 0 22px; }
+    .eyebrow { display: flex; align-items: center; gap: 8px; color: var(--cyan); font-size: .7rem; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
+    .eyebrow-mark { width: 22px; height: 1px; background: var(--cyan); }
+    h1 { margin: 10px 0 8px; font-size: clamp(1.8rem, 3.2vw, 2.65rem); line-height: 1.12; letter-spacing: -.055em; font-weight: 740; }
+    .page-description { max-width: 660px; margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.65; }
+    .session-chip { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .77rem; text-align: right; }
+    .session-icon { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); color: var(--cyan); }
+    .session-icon svg { width: 18px; height: 18px; }
+    .session-chip strong { display: block; margin-bottom: 2px; color: var(--text); font-size: .82rem; font-weight: 650; }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; margin-bottom: 16px; }
+    .metric {
+      min-width: 0; display: flex; align-items: center; gap: 13px; padding: 16px 17px;
+      border: 1px solid var(--line); border-radius: var(--radius-md); background: rgba(17, 25, 35, .76);
+    }
+    .metric-icon { width: 39px; height: 39px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 12px; color: var(--cyan); background: rgba(87, 229, 242, .09); }
+    .metric-icon.lime { color: var(--lime); background: rgba(186, 244, 119, .08); }
+    .metric-icon svg { width: 19px; height: 19px; }
+    .metric-label { color: var(--muted); font-size: .7rem; font-weight: 600; letter-spacing: .035em; text-transform: uppercase; }
+    .metric-value { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.13rem; letter-spacing: -.025em; font-weight: 730; }
+    .metric-value small { margin-left: 3px; color: var(--muted); font-size: .68rem; letter-spacing: 0; font-weight: 550; }
+
+    .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, .9fr); align-items: start; gap: 16px; }
+    .main-column, .side-column { display: grid; gap: 16px; min-width: 0; }
+    .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); background: linear-gradient(150deg, rgba(19, 29, 41, .98), rgba(14, 21, 31, .98)); box-shadow: var(--shadow); }
+    .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 22px 17px; }
+    .panel-title { margin: 0; font-size: .98rem; font-weight: 720; letter-spacing: -.015em; }
+    .panel-kicker { margin-top: 5px; color: var(--muted); font-size: .77rem; line-height: 1.5; }
+    .subtle-tag { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); color: var(--muted); font-size: .68rem; font-weight: 650; }
+    .subtle-tag .pill-dot { width: 6px; height: 6px; box-shadow: none; }
+    .subtle-tag.live { color: var(--green); border-color: rgba(118, 227, 173, .18); }
+    .subtle-tag.live .pill-dot { background: var(--green); }
+
+    .radar-stage { position: relative; padding: 0 16px; }
+    .radar-wrap {
+      position: relative; width: 100%; aspect-ratio: 1.74 / 1; min-height: 250px; overflow: hidden;
+      border: 1px solid rgba(87, 229, 242, .12); border-radius: 15px;
+      background: radial-gradient(ellipse at 50% 100%, rgba(32, 96, 106, .2), transparent 56%), #0b131d;
+    }
+    #radarCanvas { display: block; width: 100%; height: 100%; }
+    .radar-overlay { position: absolute; top: 13px; left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: start; pointer-events: none; }
+    .radar-caption { color: rgba(189, 208, 223, .7); font-size: .64rem; letter-spacing: .13em; text-transform: uppercase; }
+    .radar-legend { display: flex; align-items: center; gap: 13px; color: var(--muted); font-size: .66rem; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-swatch { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 7px rgba(87, 229, 242, .65); }
+    .legend-swatch.obstacle { background: var(--red); box-shadow: 0 0 7px rgba(255, 110, 131, .55); }
+    .radar-foot { display: flex; justify-content: space-between; gap: 12px; padding: 10px 3px 0; color: var(--subtle); font-size: .68rem; }
+    .radar-foot strong { color: var(--muted); font-weight: 600; }
+
+    .steering-section { padding: 20px 22px 22px; }
+    .steering-state { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .state-overline { color: var(--muted); font-size: .7rem; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; }
+    .direction-text { margin-top: 6px; font-size: clamp(1.25rem, 2.2vw, 1.65rem); font-weight: 750; letter-spacing: -.045em; }
+    .direction-text.clear { color: var(--green); }
+    .direction-text.left, .direction-text.right { color: var(--cyan); }
+    .pan-box { text-align: right; flex: 0 0 auto; }
+    .pan-value { font-variant-numeric: tabular-nums; font-size: 1.55rem; line-height: 1; font-weight: 750; letter-spacing: -.045em; }
+    .pan-unit { color: var(--muted); font-size: .72rem; }
+    .gauge-wrap { margin-top: 25px; }
+    .gauge-track { position: relative; height: 8px; border-radius: 999px; background: linear-gradient(90deg, rgba(87,229,242,.2), #263442 48%, rgba(186,244,119,.18)); }
+    .gauge-track::before { content: ""; position: absolute; left: 50%; top: -5px; height: 18px; width: 1px; background: rgba(237,244,250,.4); }
     .gauge-pointer {
-      position: absolute;
-      top: -7px;
-      left: 50%;
-      width: 24px;
-      height: 24px;
-      background: var(--accent);
-      border-radius: 50%;
-      transform: translateX(-50%);
-      box-shadow: 0 0 10px var(--accent);
-      transition: left 0.1s ease-out;
+      position: absolute; z-index: 2; top: 50%; left: 50%; width: 19px; height: 19px; transform: translate(-50%, -50%);
+      border-radius: 50%; border: 3px solid #12212a; background: var(--cyan); box-shadow: 0 0 0 2px var(--cyan), 0 0 20px rgba(87,229,242,.32);
+      transition: left .16s ease-out;
     }
+    .gauge-markers { display: flex; justify-content: space-between; margin-top: 13px; color: var(--muted); font-size: .67rem; font-weight: 600; }
+    .ear-mix { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 21px; }
+    .ear-card { padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(8, 14, 22, .35); }
+    .ear-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: .72rem; }
+    .ear-title { display: flex; align-items: center; gap: 8px; }
+    .ear-symbol { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: rgba(87,229,242,.08); color: var(--cyan); }
+    .ear-symbol svg { width: 14px; height: 14px; }
+    .ear-number { color: var(--text); font-size: .95rem; font-weight: 730; font-variant-numeric: tabular-nums; }
+    .volume-track { height: 4px; margin-top: 12px; border-radius: 999px; background: #25313e; overflow: hidden; }
+    .volume-fill { height: 100%; width: 100%; border-radius: inherit; background: linear-gradient(90deg, #399eaa, var(--cyan)); transition: width .15s ease-out; }
+    .right-ear .volume-fill { background: linear-gradient(90deg, #6e9c43, var(--lime)); }
 
-    .gauge-markers {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: var(--text-dim);
-      font-weight: 600;
-    }
-
-    .ear-readouts {
-      display: flex;
-      justify-content: space-around;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-      font-size: 0.85rem;
-    }
-
-    /* Controls */
+    .control-body { padding: 0 22px 22px; }
+    .audio-visual { display: flex; align-items: center; gap: 14px; margin-bottom: 17px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: linear-gradient(120deg, rgba(87,229,242,.06), rgba(87,229,242,.015)); }
+    .album-icon { width: 52px; height: 52px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 13px; color: var(--cyan); border: 1px solid rgba(87,229,242,.16); background: linear-gradient(145deg, #203943, #15202b); }
+    .album-icon svg { width: 24px; height: 24px; }
+    .track-info { min-width: 0; flex: 1; }
+    .track-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; font-weight: 700; }
+    .track-sub { margin-top: 5px; color: var(--muted); font-size: .71rem; }
+    .audio-bars { display: flex; align-items: center; gap: 3px; height: 23px; }
+    .audio-bars i { display: block; width: 3px; height: 7px; border-radius: 99px; background: var(--cyan); opacity: .65; }
+    .audio-bars i:nth-child(2), .audio-bars i:nth-child(6) { height: 15px; }
+    .audio-bars i:nth-child(3), .audio-bars i:nth-child(5) { height: 21px; }
+    .audio-bars i:nth-child(4) { height: 11px; }
+    .audio-bars.playing i { animation: equalize .7s ease-in-out infinite alternate; }
+    .audio-bars.playing i:nth-child(2n) { animation-delay: .22s; }
+    .audio-bars.playing i:nth-child(3n) { animation-delay: .42s; }
+    @keyframes equalize { from { transform: scaleY(.4); opacity: .45; } to { transform: scaleY(1); opacity: 1; } }
     .btn {
-      width: 100%;
-      padding: 12px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: 0.2s;
+      width: 100%; min-height: 47px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 12px 16px; border: 1px solid transparent; border-radius: 12px; cursor: pointer;
+      font-size: .84rem; font-weight: 720; transition: transform .18s ease, background .18s ease, border-color .18s ease, opacity .18s ease;
     }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { cursor: wait; opacity: .68; }
+    .btn svg { width: 17px; height: 17px; }
+    .btn-primary { color: #08161a; background: var(--cyan); box-shadow: 0 5px 20px rgba(87,229,242,.08); }
+    .btn-primary:hover:not(:disabled) { background: #7beaf3; }
+    .btn-primary.active { color: #0a1b12; background: var(--green); border-color: var(--green); }
+    .btn-secondary { margin-top: 9px; color: var(--text); border-color: var(--line-strong); background: #17212d; }
+    .btn-secondary:hover:not(:disabled) { background: #1c2937; border-color: rgba(87,229,242,.25); }
+    .btn-secondary.active { color: #0a1b12; background: var(--green); border-color: var(--green); }
+    .upload-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+    .upload-copy { min-width: 0; }
+    .upload-copy strong { display: block; font-size: .75rem; font-weight: 650; }
+    .upload-copy span { display: block; margin-top: 4px; color: var(--muted); font-size: .68rem; }
+    .upload-label { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--cyan); background: rgba(87,229,242,.04); cursor: pointer; font-size: .72rem; font-weight: 700; }
+    .upload-label:hover { background: rgba(87,229,242,.09); }
+    .upload-label svg { width: 14px; height: 14px; }
+    #fileInput { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-    .btn-ble {
-      background: var(--accent);
-      color: #03101e;
+    .device-body { padding: 0 22px 22px; }
+    .device-visual { position: relative; display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(7, 13, 21, .28); }
+    .device-icon { width: 47px; height: 47px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 13px; color: var(--lime); background: rgba(186,244,119,.07); border: 1px solid rgba(186,244,119,.13); }
+    .device-icon svg { width: 24px; height: 24px; }
+    .device-name { font-size: .85rem; font-weight: 720; }
+    .device-description { margin-top: 5px; color: var(--muted); font-size: .71rem; line-height: 1.45; }
+    .device-detail { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); font-size: .74rem; }
+    .device-detail span { color: var(--muted); }
+    .device-detail strong { text-align: right; font-weight: 650; }
+    .device-status { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
+    .device-status .pill-dot { width: 6px; height: 6px; box-shadow: none; }
+    .device-status.connected { color: var(--green); }
+    .device-status.connected .pill-dot { background: var(--green); }
+    .notice { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px; border: 1px solid rgba(255,209,138,.13); border-radius: 11px; background: rgba(255,209,138,.035); color: var(--muted); font-size: .69rem; line-height: 1.55; }
+    .notice svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--amber); margin-top: 1px; }
+
+    .system-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 23px 2px 0; color: var(--subtle); font-size: .69rem; }
+    .footer-brand { display: flex; align-items: center; gap: 7px; }
+    .footer-brand svg { width: 14px; height: 14px; color: var(--cyan); }
+    .footer-right { display: flex; align-items: center; gap: 8px; }
+    .footer-separator { width: 3px; height: 3px; border-radius: 50%; background: var(--subtle); }
+
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 10; max-width: min(380px, calc(100vw - 32px)); padding: 13px 16px; border: 1px solid var(--line-strong); border-radius: 13px; background: #17212c; color: var(--text); box-shadow: var(--shadow); font-size: .8rem; line-height: 1.5; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s ease, transform .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 1000px) {
+      .dashboard-grid { grid-template-columns: minmax(0, 1.2fr) minmax(285px, .8fr); }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metric { padding: 14px; }
     }
-
-    .btn-music {
-      background: #1e293b;
-      color: var(--text);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      margin-top: 8px;
+    @media (max-width: 760px) {
+      .app-shell { padding: 18px 15px 22px; }
+      .topbar { padding-bottom: 19px; }
+      .environment-tag { display: none; }
+      .page-heading { align-items: flex-start; padding: 24px 0 18px; }
+      .session-chip { display: none; }
+      .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+      .side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+      .panel-header { padding: 18px 18px 15px; }
+      .steering-section { padding: 18px; }
+      .control-body, .device-body { padding: 0 18px 18px; }
+      .radar-stage { padding: 0 12px; }
+      .radar-wrap { min-height: 225px; }
     }
-
-    .btn-music.active {
-      background: var(--green);
-      color: #03101e;
-      border: none;
+    @media (max-width: 560px) {
+      .brand-mark { width: 40px; height: 40px; border-radius: 12px; }
+      .brand-sub { font-size: .68rem; }
+      .connection-pill { padding: 8px 10px; font-size: .68rem; }
+      .metrics { gap: 9px; }
+      .metric { gap: 10px; padding: 12px 11px; }
+      .metric-icon { width: 33px; height: 33px; border-radius: 10px; }
+      .metric-label { font-size: .62rem; }
+      .metric-value { font-size: 1rem; }
+      .side-column { grid-template-columns: minmax(0, 1fr); }
+      .radar-wrap { min-height: 210px; aspect-ratio: 1.28 / 1; }
+      .radar-legend { gap: 8px; }
+      .radar-caption { font-size: .58rem; }
+      .radar-legend { font-size: .59rem; }
+      .radar-foot { font-size: .61rem; }
+      .ear-mix { gap: 8px; }
+      .ear-card { padding: 11px; }
+      .ear-card-top { font-size: .66rem; }
+      .upload-row { align-items: flex-start; }
+      .upload-label { padding: 9px; }
+      .upload-label span { display: none; }
+      .system-footer { align-items: flex-start; flex-direction: column; }
     }
-
-    .file-input-wrapper {
-      margin-top: 8px;
-      text-align: center;
-    }
-
-    .file-btn {
-      font-size: 0.8rem;
-      color: var(--accent);
-      text-decoration: underline;
-      cursor: pointer;
-    }
-
-    #fileInput {
-      display: none;
-    }
-
-    .status-badge {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      color: var(--text-dim);
-      margin-top: 8px;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #64748b;
-    }
-
-    .dot.active {
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
   </style>
 </head>
 <body>
-
-  <header>
-    <h1>EchoGuide</h1>
-    <p class="sub">Spatial Navigation & Corridor Steering</p>
-  </header>
-
-  <div class="container">
-    <!-- Visual Radar & Corridor Gauge -->
-    <div class="card">
-      <div class="radar-wrapper">
-        <canvas id="radarCanvas"></canvas>
-      </div>
-
-      <div class="corridor-header">
-        <div class="corridor-label" id="dirText">Path Ahead Clear</div>
-        <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">
-          Pan Index: <span id="panVal">0</span>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand" aria-label="EchoGuide home">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 28 28" fill="none"><path d="M3 14h3.5l2.3-6 4.1 12 3.2-9 2.1 5H25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="14" r="12" stroke="currentColor" stroke-opacity=".35"/></svg>
+        </div>
+        <div>
+          <div class="brand-name">Echo<span>Guide</span></div>
+          <div class="brand-sub">Spatial awareness system</div>
         </div>
       </div>
-
-      <div class="gauge-track">
-        <div class="gauge-pointer" id="pointer"></div>
+      <div class="topbar-right">
+        <div class="environment-tag"><span class="pill-dot"></span> LOCAL CONTROL PANEL</div>
+        <div id="headerConnection" class="connection-pill"><span class="pill-dot"></span><span id="headerConnectionText">Device offline</span></div>
       </div>
-      <div class="gauge-markers">
-        <span>LEFT (-100)</span>
-        <span>AHEAD (0)</span>
-        <span>RIGHT (+100)</span>
+    </header>
+
+    <section class="page-heading">
+      <div>
+        <div class="eyebrow"><span class="eyebrow-mark"></span> Navigation console</div>
+        <h1>Spatial navigation</h1>
+        <p class="page-description">Monitor nearby obstacles, read directional steering cues, and tune stereo audio guidance from your ESP32 sensor system.</p>
+      </div>
+      <div class="session-chip">
+        <div class="session-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.6"/></svg></div>
+        <div><strong>Sensor overview</strong><span id="sessionText">Waiting for telemetry</span></div>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="System summary">
+      <article class="metric">
+        <div class="metric-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 18V6m0 12h16M7 15l3-4 3 2 4-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><div class="metric-label">Pan index</div><div class="metric-value"><span id="metricPan">0</span><small>/ 100</small></div></div>
+      </article>
+      <article class="metric">
+        <div class="metric-icon lime"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 3.8 18h16.4L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4m0 2.5v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+        <div><div class="metric-label">Nearby returns</div><div class="metric-value"><span id="metricObstacles">0</span><small>visible</small></div></div>
+      </article>
+      <article class="metric">
+        <div class="metric-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M12 7v5l3.5 2M16 3h5v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><div class="metric-label">Last update</div><div class="metric-value" id="metricUpdate">—</div></div>
+      </article>
+      <article class="metric">
+        <div class="metric-icon lime"><svg viewBox="0 0 24 24" fill="none"><path d="M8 5 4 9l4 4m8-8 4 4-4 4M14 3 10 21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><div class="metric-label">Audio engine</div><div class="metric-value" id="metricAudio">Standby</div></div>
+      </article>
+    </section>
+
+    <main class="dashboard-grid">
+      <div class="main-column">
+        <section class="panel" aria-labelledby="radarTitle">
+          <div class="panel-header">
+            <div><h2 class="panel-title" id="radarTitle">Radar field</h2><div class="panel-kicker">Live angular sweep and proximity returns</div></div>
+            <div id="radarLiveTag" class="subtle-tag"><span class="pill-dot"></span><span>Awaiting data</span></div>
+          </div>
+          <div class="radar-stage">
+            <div class="radar-wrap">
+              <canvas id="radarCanvas" aria-label="Semicircular radar plot of nearby obstacles"></canvas>
+              <div class="radar-overlay">
+                <span class="radar-caption">180° field of view</span>
+                <div class="radar-legend"><span class="legend-item"><i class="legend-swatch"></i> Sweep</span><span class="legend-item"><i class="legend-swatch obstacle"></i> Return</span></div>
+              </div>
+            </div>
+            <div class="radar-foot"><span>Range <strong>0–200 cm*</strong></span><span><strong id="radarAngleText">Angle 50</strong> · centered at front</span></div>
+          </div>
+          <div class="steering-section">
+            <div class="steering-state">
+              <div><div class="state-overline">Directional guidance</div><div id="dirText" class="direction-text clear" aria-live="polite">Path ahead clear</div></div>
+              <div class="pan-box"><div class="pan-value"><span id="panVal">0</span><span class="pan-unit"> / 100</span></div><div class="pan-unit">PAN INDEX</div></div>
+            </div>
+            <div class="gauge-wrap" aria-label="Steering direction gauge">
+              <div class="gauge-track"><div id="pointer" class="gauge-pointer"></div></div>
+              <div class="gauge-markers"><span>← LEFT</span><span>AHEAD</span><span>RIGHT →</span></div>
+            </div>
+            <div class="ear-mix">
+              <div class="ear-card">
+                <div class="ear-card-top"><span class="ear-title"><span class="ear-symbol"><svg viewBox="0 0 24 24" fill="none"><path d="M4 10v4h3l4 3V7l-4 3H4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M15 9a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Left channel</span><strong class="ear-number" id="leftVol">100%</strong></div>
+                <div class="volume-track"><div id="leftFill" class="volume-fill"></div></div>
+              </div>
+              <div class="ear-card right-ear">
+                <div class="ear-card-top"><span class="ear-title"><span class="ear-symbol"><svg viewBox="0 0 24 24" fill="none"><path d="M20 10v4h-3l-4 3V7l4 3h3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 9a4 4 0 0 0 0 6M7 7a7 7 0 0 0 0 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Right channel</span><strong class="ear-number" id="rightVol">100%</strong></div>
+                <div class="volume-track"><div id="rightFill" class="volume-fill"></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <div class="ear-readouts">
-        <span>Left Ear: <b id="leftVol">100%</b></span>
-        <span>Right Ear: <b id="rightVol">100%</b></span>
-      </div>
-    </div>
+      <aside class="side-column" aria-label="Audio and device controls">
+        <section class="panel" aria-labelledby="audioTitle">
+          <div class="panel-header"><div><h2 class="panel-title" id="audioTitle">Audio guidance</h2><div class="panel-kicker">Stereo panning follows the pan index</div></div><div class="subtle-tag">STEREO</div></div>
+          <div class="control-body">
+            <audio id="audioElement" loop crossorigin="anonymous"></audio>
+            <div class="audio-visual">
+              <div class="album-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.7"/></svg></div>
+              <div class="track-info"><div class="track-name" id="trackName">Rain ambience</div><div class="track-sub" id="trackSub">Default navigation test track</div></div>
+              <div class="audio-bars" id="audioBars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <button id="btnPlayMusic" class="btn btn-primary" type="button" onclick="toggleAudio()">
+              <svg id="playIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/></svg><span id="playButtonText">Play navigation track</span>
+            </button>
+            <div class="upload-row">
+              <div class="upload-copy"><strong>Use your own audio</strong><span>MP3, WAV, or another supported format</span></div>
+              <label for="fileInput" class="upload-label" tabindex="0"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15v4h14v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Choose file</span></label>
+              <input type="file" id="fileInput" accept="audio/*" />
+            </div>
+          </div>
+        </section>
 
-    <!-- Audio Player Controls -->
-    <div class="card">
-      <audio id="audioElement" loop crossorigin="anonymous"></audio>
+        <section class="panel" aria-labelledby="deviceTitle">
+          <div class="panel-header"><div><h2 class="panel-title" id="deviceTitle">Hardware link</h2><div class="panel-kicker">Bluetooth Low Energy · ESP32-Pan</div></div><div class="subtle-tag">BLE</div></div>
+          <div class="device-body">
+            <div class="device-visual">
+              <div class="device-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="7" y="2.8" width="10" height="18.4" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M10 6h4m-4 12h4M4 7v10m16-10v10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="15" r=".8" fill="currentColor"/></svg></div>
+              <div><div class="device-name">ESP32-Pan</div><div class="device-description">Radar telemetry and directional steering</div></div>
+            </div>
+            <div class="device-detail"><span>Connection</span><strong id="deviceStatus" class="device-status"><i class="pill-dot"></i><span id="statusText">Disconnected</span></strong></div>
+            <div class="device-detail"><span>Telemetry channel</span><strong id="telemetryStatus">Not subscribed</strong></div>
+            <div class="device-detail"><span>Audio output</span><strong id="audioStatus">Browser stereo</strong></div>
+            <button id="btnConnect" class="btn btn-primary" type="button" onclick="connectBLE()">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7l10 10-5 4V3l5 4L7 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="connectButtonText">Connect to ESP32</span>
+            </button>
+            <div class="notice"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5m0-8h.01" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Use a BLE-compatible browser (such as Chrome or Edge) and a secure context. Bluetooth access is not available in every browser or from ordinary local files.</span></div>
+          </div>
+        </section>
+      </aside>
+    </main>
 
-      <button id="btnPlayMusic" class="btn btn-music" onclick="toggleAudio()">
-        ▶ Play Navigation Track
-      </button>
-
-      <div class="file-input-wrapper">
-        <label class="file-btn">
-          Select custom MP3 song
-          <input type="file" id="fileInput" accept="audio/*">
-        </label>
-      </div>
-    </div>
-
-    <!-- Bluetooth Connection Card -->
-    <div class="card">
-      <button id="btnConnect" class="btn btn-ble" onclick="connectBLE()">
-        Connect ESP32-Pan
-      </button>
-
-      <div class="status-badge">
-        <span id="statusDot" class="dot"></span>
-        <span id="statusText">Disconnected</span>
-      </div>
-    </div>
+    <footer class="system-footer">
+      <div class="footer-brand"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2-5 4 10 2-5h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>EchoGuide Navigation Console</span></div>
+      <div class="footer-right"><span>Telemetry is device-fed</span><i class="footer-separator"></i><span id="clockText">Local time —</span></div>
+    </footer>
   </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
+    'use strict';
+
     const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
     const RADAR_UUID   = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
     const PAN_TX_UUID  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-    let ctx = null;
-    let panner = null;
     const audio = document.getElementById('audioElement');
+    let audioContext = null;
+    let panner = null;
     let isPlaying = false;
+    let connectedDevice = null;
+    let radarSubscribed = false;
+    let panSubscribed = false;
+    let currentAngle = 50;
+    let blips = [];
+    let lastTelemetryAt = null;
+    let toastTimeout = null;
+    let objectUrl = null;
 
-    // Default ambient test audio
-    audio.src = "https://actions.google.com/sounds/v1/weather/light_rain.ogg";
+    // Default ambience is only a test track; replace it with a local file if needed.
+    audio.src = 'https://actions.google.com/sounds/v1/weather/light_rain.ogg';
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => toast.classList.remove('show'), 3600);
+    }
 
     function initAudio() {
-      if (!ctx) {
-        ctx = new (window.AudioContext || window.webkitAudioContext)();
-        panner = new StereoPannerNode(ctx, { pan: 0 });
-        const source = ctx.createMediaElementSource(audio);
-        source.connect(panner);
-        panner.connect(ctx.destination);
+      if (!('AudioContext' in window || 'webkitAudioContext' in window)) {
+        throw new Error('This browser does not support the Web Audio API.');
       }
-      if (ctx.state === 'suspended') {
-        ctx.resume();
+      if (!audioContext) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContextClass();
+        panner = audioContext.createStereoPanner ? audioContext.createStereoPanner() : null;
+        const source = audioContext.createMediaElementSource(audio);
+        if (panner) {
+          source.connect(panner);
+          panner.connect(audioContext.destination);
+        } else {
+          source.connect(audioContext.destination);
+          document.getElementById('audioStatus').textContent = 'Stereo panning unavailable';
+        }
+      }
+      if (audioContext.state === 'suspended') audioContext.resume();
+    }
+
+    function updateAudioUI() {
+      const button = document.getElementById('btnPlayMusic');
+      const bars = document.getElementById('audioBars');
+      document.getElementById('playButtonText').textContent = isPlaying ? 'Pause navigation track' : 'Play navigation track';
+      document.getElementById('playIcon').innerHTML = isPlaying
+        ? '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/>'
+        : '<path d="m8 5 11 7-11 7V5Z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/>';
+      button.classList.toggle('active', isPlaying);
+      bars.classList.toggle('playing', isPlaying);
+      document.getElementById('metricAudio').textContent = isPlaying ? 'Playing' : 'Standby';
+    }
+
+    async function toggleAudio() {
+      const button = document.getElementById('btnPlayMusic');
+      button.disabled = true;
+      try {
+        initAudio();
+        if (!isPlaying) {
+          await audio.play();
+          isPlaying = true;
+        } else {
+          audio.pause();
+          isPlaying = false;
+        }
+        updateAudioUI();
+      } catch (error) {
+        showToast('Audio could not start. Choose a local audio file or check your browser permissions.');
+        console.error('Audio playback error:', error);
+      } finally {
+        button.disabled = false;
       }
     }
 
-    document.getElementById('fileInput').addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        audio.src = URL.createObjectURL(file);
-        if (isPlaying) audio.play();
+    audio.addEventListener('pause', () => {
+      if (isPlaying) { isPlaying = false; updateAudioUI(); }
+    });
+    audio.addEventListener('play', () => {
+      isPlaying = true;
+      updateAudioUI();
+    });
+    audio.addEventListener('error', () => {
+      if (audio.currentSrc) {
+        document.getElementById('trackSub').textContent = 'Track unavailable — choose a local file';
       }
     });
 
-    function toggleAudio() {
-      initAudio();
-      const btn = document.getElementById('btnPlayMusic');
-
-      if (!isPlaying) {
-        audio.play().then(() => {
-          isPlaying = true;
-          btn.innerText = "⏸ Pause Navigation Track";
-          btn.classList.add("active");
-        }).catch(err => alert("Audio playback error: " + err.message));
+    document.getElementById('fileInput').addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const resumePlayback = isPlaying;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(file);
+      audio.src = objectUrl;
+      document.getElementById('trackName').textContent = file.name;
+      document.getElementById('trackSub').textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB · Local audio file`;
+      if (resumePlayback) {
+        try { await audio.play(); }
+        catch (error) { showToast('File selected. Press play to start the new track.'); }
       } else {
-        audio.pause();
-        isPlaying = false;
-        btn.innerText = "▶ Play Navigation Track";
-        btn.classList.remove("active");
+        showToast('Audio file loaded and ready to play.');
       }
-    }
+    });
 
-    // --- Web Bluetooth Connection ---
+    // Web Bluetooth
     async function connectBLE() {
-      initAudio();
+      const button = document.getElementById('btnConnect');
+      if (!navigator.bluetooth) {
+        showToast('Web Bluetooth is not available here. Try Chrome or Edge on a supported device over HTTPS or localhost.');
+        return;
+      }
+      if (connectedDevice && connectedDevice.gatt && connectedDevice.gatt.connected) {
+        try { connectedDevice.gatt.disconnect(); } catch (error) { console.warn(error); }
+        return;
+      }
 
+      button.disabled = true;
+      document.getElementById('connectButtonText').textContent = 'Scanning for device…';
+      updateStatus('Scanning for ESP32-Pan…', false);
       try {
-        updateStatus("Scanning for ESP32-Pan...", false);
-
-        // Compatible with both service filtering and explicit name matching
-        const dev = await navigator.bluetooth.requestDevice({
+        const device = await navigator.bluetooth.requestDevice({
           filters: [{ services: [SERVICE_UUID] }],
           optionalServices: [SERVICE_UUID]
         });
+        connectedDevice = device;
+        device.addEventListener('gattserverdisconnected', onDisconnected);
+        updateStatus('Connecting…', false);
+        document.getElementById('connectButtonText').textContent = 'Connecting…';
 
-        dev.addEventListener('gattserverdisconnected', onDisconnected);
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
 
-        updateStatus("Connecting GATT...", false);
-        const srv = await dev.gatt.connect();
-        const primaryService = await srv.getPrimaryService(SERVICE_UUID);
-
-        // Subscribe to Channel 1 (Pan)
-        const chPan = await primaryService.getCharacteristic(PAN_TX_UUID);
-        await chPan.startNotifications();
-        chPan.addEventListener('characteristicvaluechanged', (e) => {
-          const v = parseInt(new TextDecoder().decode(e.target.value), 10);
-          if (!isNaN(v)) updateSteering(v);
+        const panCharacteristic = await service.getCharacteristic(PAN_TX_UUID);
+        await panCharacteristic.startNotifications();
+        panCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
+          const value = parseInt(new TextDecoder().decode(event.target.value).trim(), 10);
+          if (!Number.isNaN(value)) {
+            lastTelemetryAt = Date.now();
+            panSubscribed = true;
+            updateSteering(value);
+            updateTelemetryUI();
+          }
         });
+        panSubscribed = true;
 
-        // Subscribe to Channel 2 (Radar Telemetry)
+        radarSubscribed = false;
         try {
-          const chRadar = await primaryService.getCharacteristic(RADAR_UUID);
-          await chRadar.startNotifications();
-          chRadar.addEventListener('characteristicvaluechanged', (e) => {
-            const raw = new TextDecoder().decode(e.target.value).trim();
-            if (raw.startsWith("$")) {
-              const parts = raw.substring(1).split(",");
+          const radarCharacteristic = await service.getCharacteristic(RADAR_UUID);
+          await radarCharacteristic.startNotifications();
+          radarCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
+            const raw = new TextDecoder().decode(event.target.value).trim();
+            // Expected radar packet format: $<angle>,<distance-in-cm>
+            if (raw.startsWith('$')) {
+              const parts = raw.substring(1).split(',');
               if (parts.length === 2) {
                 const angle = parseInt(parts[0], 10);
-                const dist = parseInt(parts[1], 10);
-                if (!isNaN(angle) && !isNaN(dist)) processRadarPoint(angle, dist);
+                const distance = parseInt(parts[1], 10);
+                if (!Number.isNaN(angle) && !Number.isNaN(distance)) {
+                  lastTelemetryAt = Date.now();
+                  radarSubscribed = true;
+                  processRadarPoint(angle, distance);
+                  updateTelemetryUI();
+                }
               }
             }
           });
-        } catch (radarErr) {
-          console.warn("Radar characteristic not active; using audio mode only.");
+          radarSubscribed = true;
+        } catch (radarError) {
+          console.warn('Radar characteristic is unavailable; steering audio remains available.', radarError);
         }
 
-        updateStatus("Connected to ESP32-Pan", true);
-        document.getElementById('btnConnect').innerText = "Connected";
-      } catch (err) {
-        console.error("BLE Error:", err);
-        updateStatus("Connection failed", false);
-        alert("Bluetooth connection failed: " + err.message);
+        updateStatus(`Connected · ${device.name || 'ESP32-Pan'}`, true);
+        document.getElementById('connectButtonText').textContent = 'Disconnect device';
+        updateTelemetryUI();
+        showToast(radarSubscribed ? 'ESP32 connected. Receiving steering and radar notifications.' : 'ESP32 connected. Steering notifications enabled; radar channel unavailable.');
+      } catch (error) {
+        console.error('BLE connection error:', error);
+        if (error.name === 'NotFoundError') {
+          updateStatus('Device selection cancelled', false);
+          showToast('No device selected. Make sure the ESP32 is advertising the expected BLE service.');
+        } else {
+          updateStatus('Connection failed', false);
+          showToast(error.message || 'Bluetooth connection failed. Check the device and try again.');
+        }
+        document.getElementById('connectButtonText').textContent = 'Connect to ESP32';
+      } finally {
+        button.disabled = false;
       }
     }
 
-    function updateSteering(val) {
-      const panClamped = Math.max(-100, Math.min(100, val));
-      const normalizedPan = panClamped / 100.0;
-
-      // Equal-power / target pan smoothing
-      if (panner && ctx) {
-        panner.pan.setTargetAtTime(normalizedPan, ctx.currentTime, 0.1);
-      }
-
-      document.getElementById('panVal').textContent = panClamped;
-
-      // Update visual gauge pointer
-      const pointerPercent = ((panClamped + 100) / 200) * 100;
-      document.getElementById('pointer').style.left = `${pointerPercent}%`;
-
-      // Text guidance
-      const dirText = document.getElementById('dirText');
-      if (panClamped <= -20) {
-        dirText.innerText = `Steer Left (${Math.abs(panClamped)}%)`;
-        dirText.style.color = "#38bdf8";
-      } else if (panClamped >= 20) {
-        dirText.innerText = `Steer Right (${panClamped}%)`;
-        dirText.style.color = "#38bdf8";
-      } else {
-        dirText.innerText = "Path Ahead Clear";
-        dirText.style.color = "var(--green)";
-      }
-
-      // Volume percentages
-      const leftPerc = panClamped <= 0 ? 100 : Math.round((1 - normalizedPan) * 100);
-      const rightPerc = panClamped >= 0 ? 100 : Math.round((1 - Math.abs(normalizedPan)) * 100);
-      document.getElementById('leftVol').innerText = `${leftPerc}%`;
-      document.getElementById('rightVol').innerText = `${rightPerc}%`;
+    function updateStatus(text, active) {
+      document.getElementById('statusText').textContent = text;
+      const deviceStatus = document.getElementById('deviceStatus');
+      deviceStatus.classList.toggle('connected', active);
+      const header = document.getElementById('headerConnection');
+      header.classList.toggle('connected', active);
+      document.getElementById('headerConnectionText').textContent = active ? 'Device connected' : 'Device offline';
+      document.getElementById('sessionText').textContent = active ? 'ESP32 link established' : 'Waiting for telemetry';
     }
 
     function onDisconnected() {
-      updateStatus("Disconnected", false);
-      document.getElementById('btnConnect').innerText = "Connect ESP32-Pan";
+      connectedDevice = null;
+      panSubscribed = false;
+      radarSubscribed = false;
+      updateStatus('Disconnected', false);
+      document.getElementById('connectButtonText').textContent = 'Connect to ESP32';
+      document.getElementById('telemetryStatus').textContent = 'Not subscribed';
+      document.getElementById('radarLiveTag').classList.remove('live');
+      document.getElementById('radarLiveTag').innerHTML = '<span class="pill-dot"></span><span>Awaiting data</span>';
       updateSteering(0);
+      showToast('ESP32 connection closed.');
     }
 
-    function updateStatus(text, isActive) {
-      document.getElementById("statusText").innerText = text;
-      const dot = document.getElementById("statusDot");
-      if (isActive) dot.classList.add("active");
-      else dot.classList.remove("active");
+    function updateSteering(value) {
+      const pan = Math.max(-100, Math.min(100, value));
+      const normalized = pan / 100;
+      if (panner && audioContext) {
+        panner.pan.setTargetAtTime(normalized, audioContext.currentTime, 0.1);
+      }
+
+      document.getElementById('panVal').textContent = pan;
+      document.getElementById('metricPan').textContent = pan;
+      document.getElementById('pointer').style.left = `${((pan + 100) / 200) * 100}%`;
+
+      const direction = document.getElementById('dirText');
+      direction.classList.remove('clear', 'left', 'right');
+      if (pan <= -20) {
+        direction.textContent = `Steer left · ${Math.abs(pan)}%`;
+        direction.classList.add('left');
+      } else if (pan >= 20) {
+        direction.textContent = `Steer right · ${pan}%`;
+        direction.classList.add('right');
+      } else {
+        direction.textContent = 'Path ahead clear';
+        direction.classList.add('clear');
+      }
+
+      const left = pan <= 0 ? 100 : Math.round((1 - normalized) * 100);
+      const right = pan >= 0 ? 100 : Math.round((1 - Math.abs(normalized)) * 100);
+      document.getElementById('leftVol').textContent = `${left}%`;
+      document.getElementById('rightVol').textContent = `${right}%`;
+      document.getElementById('leftFill').style.width = `${left}%`;
+      document.getElementById('rightFill').style.width = `${right}%`;
     }
 
-    // --- Radar Visualizer Canvas ---
-    const canvas = document.getElementById("radarCanvas");
-    const rCtx = canvas.getContext("2d");
-    let currentAngle = 50;
-    let blips = [];
-
-    function resizeCanvas() {
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
-    }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
-
-    function processRadarPoint(angle, dist) {
-      currentAngle = angle;
-      if (dist < 200) {
-        blips.push({ angle, dist, time: Date.now() });
+    function updateTelemetryUI() {
+      document.getElementById('telemetryStatus').textContent = panSubscribed
+        ? (radarSubscribed ? 'Pan + radar active' : 'Steering active')
+        : 'Not subscribed';
+      document.getElementById('radarLiveTag').classList.toggle('live', radarSubscribed);
+      document.getElementById('radarLiveTag').innerHTML = radarSubscribed
+        ? '<span class="pill-dot"></span><span>Live telemetry</span>'
+        : '<span class="pill-dot"></span><span>Awaiting radar</span>';
+      if (lastTelemetryAt) {
+        document.getElementById('metricUpdate').textContent = new Date(lastTelemetryAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('sessionText').textContent = 'Telemetry stream active';
       }
     }
 
+    // Radar canvas renderer: coordinate scaling keeps the plot sharp on high-DPI screens.
+    const canvas = document.getElementById('radarCanvas');
+    const radarContext = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.round(rect.width * ratio);
+      canvas.height = Math.round(rect.height * ratio);
+      radarContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function processRadarPoint(angle, distance) {
+      currentAngle = Math.max(0, Math.min(100, angle));
+      if (distance >= 0 && distance <= 200) {
+        blips.push({ angle: currentAngle, distance, time: Date.now() });
+        if (blips.length > 120) blips.splice(0, blips.length - 120);
+      }
+      document.getElementById('radarAngleText').textContent = `Angle ${currentAngle}`;
+    }
+
     function drawRadar() {
-      rCtx.clearRect(0, 0, canvas.width, canvas.height);
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (width && height) {
+        radarContext.clearRect(0, 0, width, height);
+        const cx = width / 2;
+        const cy = height * 0.91;
+        const radius = Math.min(width * .46, height * .82);
 
-      const cx = canvas.width / 2;
-      const cy = canvas.height * 0.92;
-      const radius = Math.min(canvas.width * 0.46, canvas.height * 0.85);
+        // Subtle centre glow.
+        const glow = radarContext.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        glow.addColorStop(0, 'rgba(87,229,242,.055)');
+        glow.addColorStop(1, 'rgba(87,229,242,0)');
+        radarContext.fillStyle = glow;
+        radarContext.fillRect(0, 0, width, height);
 
-      // Arc rings
-      rCtx.strokeStyle = "rgba(0, 229, 255, 0.15)";
-      [0.33, 0.66, 1.0].forEach(r => {
-        rCtx.beginPath();
-        rCtx.arc(cx, cy, radius * r, Math.PI, 2 * Math.PI);
-        rCtx.stroke();
-      });
+        radarContext.lineWidth = 1;
+        radarContext.strokeStyle = 'rgba(87,229,242,.15)';
+        [.25, .5, .75, 1].forEach(scale => {
+          radarContext.beginPath();
+          radarContext.arc(cx, cy, radius * scale, Math.PI, Math.PI * 2);
+          radarContext.stroke();
+        });
 
-      // Rays
-      [0, 25, 50, 75, 100].forEach(deg => {
-        const rad = Math.PI + (deg / 100.0) * Math.PI;
-        rCtx.beginPath();
-        rCtx.moveTo(cx, cy);
-        rCtx.lineTo(cx + radius * Math.cos(rad), cy + radius * Math.sin(rad));
-        rCtx.stroke();
-      });
+        [0, 25, 50, 75, 100].forEach(value => {
+          const angle = Math.PI + (value / 100) * Math.PI;
+          radarContext.beginPath();
+          radarContext.moveTo(cx, cy);
+          radarContext.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
+          radarContext.strokeStyle = value === 50 ? 'rgba(87,229,242,.28)' : 'rgba(87,229,242,.11)';
+          radarContext.stroke();
+        });
 
-      // Obstacle blips
-      const now = Date.now();
-      blips = blips.filter(b => now - b.time < 1200);
-      blips.forEach(b => {
-        const opacity = (1 - (now - b.time) / 1200).toFixed(2);
-        const rad = Math.PI + (b.angle / 100.0) * Math.PI;
-        const distRatio = Math.min(b.dist / 200.0, 1.0);
-        const r = distRatio * radius;
+        const now = Date.now();
+        blips = blips.filter(point => now - point.time < 1800);
+        blips.forEach(point => {
+          const opacity = Math.max(0, 1 - (now - point.time) / 1800);
+          const angle = Math.PI + (point.angle / 100) * Math.PI;
+          const dist = (point.distance / 200) * radius;
+          const x = cx + dist * Math.cos(angle);
+          const y = cy + dist * Math.sin(angle);
+          radarContext.beginPath();
+          radarContext.fillStyle = `rgba(255,110,131,${opacity * .2})`;
+          radarContext.arc(x, y, 8, 0, Math.PI * 2);
+          radarContext.fill();
+          radarContext.beginPath();
+          radarContext.fillStyle = `rgba(255,110,131,${opacity})`;
+          radarContext.arc(x, y, 3.2, 0, Math.PI * 2);
+          radarContext.fill();
+        });
+        document.getElementById('metricObstacles').textContent = String(blips.length);
 
-        rCtx.fillStyle = `rgba(255, 51, 102, ${opacity})`;
-        rCtx.beginPath();
-        rCtx.arc(cx + r * Math.cos(rad), cy + r * Math.sin(rad), 4, 0, 2 * Math.PI);
-        rCtx.fill();
-      });
+        const sweepAngle = Math.PI + (currentAngle / 100) * Math.PI;
+        radarContext.beginPath();
+        radarContext.moveTo(cx, cy);
+        radarContext.lineTo(cx + radius * Math.cos(sweepAngle), cy + radius * Math.sin(sweepAngle));
+        radarContext.strokeStyle = 'rgba(87,229,242,.95)';
+        radarContext.lineWidth = 1.7;
+        radarContext.shadowColor = 'rgba(87,229,242,.55)';
+        radarContext.shadowBlur = 8;
+        radarContext.stroke();
+        radarContext.shadowBlur = 0;
 
-      // Sweep needle
-      const sweepRad = Math.PI + (currentAngle / 100.0) * Math.PI;
-      rCtx.strokeStyle = "#00e5ff";
-      rCtx.lineWidth = 2;
-      rCtx.beginPath();
-      rCtx.moveTo(cx, cy);
-      rCtx.lineTo(cx + radius * Math.cos(sweepRad), cy + radius * Math.sin(sweepRad));
-      rCtx.stroke();
-
+        // Small reference point at the sensor origin.
+        radarContext.beginPath();
+        radarContext.fillStyle = '#8af0f5';
+        radarContext.arc(cx, cy, 3, 0, Math.PI * 2);
+        radarContext.fill();
+      }
       requestAnimationFrame(drawRadar);
     }
+
+    function updateClock() {
+      document.getElementById('clockText').textContent = `Local time ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('beforeunload', () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (connectedDevice && connectedDevice.gatt && connectedDevice.gatt.connected) connectedDevice.gatt.disconnect();
+    });
+    resizeCanvas();
     drawRadar();
+    updateSteering(0);
+    updateAudioUI();
+    updateClock();
+    setInterval(updateClock, 30000);
   </script>
 </body>
 </html>
