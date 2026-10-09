@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EchoGuide – Spatial Audio Radar</title>
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: #151d2f;
+      --accent-color: #00e5ff;
+      --accent-alert: #ff3366;
+      --text-main: #f0f4f8;
+      --text-dim: #7e8c9f;
+      --grid-line: rgba(0, 229, 255, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      color: var(--accent-color);
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    p.subtitle {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Radar Canvas Styling */
+    .radar-wrapper {
+      position: relative;
+      width: 100%;
+      padding-top: 65%; /* Aspect ratio matching arc */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 90%, #1a233a 0%, #0d121d 100%);
+    }
+
+    /* Telemetry Info Grid */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      text-align: center;
+    }
+
+    .stat-box {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent-color);
+      margin-top: 4px;
+    }
+
+    /* Controls */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-connect {
+      background: var(--accent-color);
+      color: #05101a;
+    }
+
+    .btn-connect:hover {
+      background: #33ecff;
+    }
+
+    .btn-disconnect {
+      background: #334155;
+      color: #f1f5f9;
+      display: none;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-top: 8px;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #64748b;
+    }
+
+    .dot.active {
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .info-footer {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-align: center;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>EchoGuide</h1>
+    <p class="subtitle">Spatial Audio Navigation System</p>
+  </header>
+
+  <div class="container">
+    <!-- Radar Canvas Card -->
+    <div class="card">
+      <div class="radar-wrapper">
+        <canvas id="radarCanvas"></canvas>
+      </div>
+
+      <div class="telemetry-grid" style="margin-top: 14px;">
+        <div class="stat-box">
+          <div class="stat-label">Angle</div>
+          <div class="stat-value" id="valAngle">--°</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Distance</div>
+          <div class="stat-value" id="valDistance">-- cm</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Direction</div>
+          <div class="stat-value" id="valDir">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bluetooth Control Card -->
+    <div class="card">
+      <button id="btnConnect" class="btn btn-connect" onclick="connectBLE()">
+        Connect EchoGuide (BLE)
+      </button>
+      <button id="btnDisconnect" class="btn btn-disconnect" onclick="disconnectBLE()">
+        Disconnect
+      </button>
+
+      <div class="status-badge">
+        <span id="statusDot" class="dot"></span>
+        <span id="statusText">Disconnected</span>
+      </div>
+    </div>
+
+    <p class="info-footer">
+      Put on stereo headphones. When an obstacle is detected, the audio pans toward the obstacle's direction (Left/Right) and rises in pitch as it gets closer.
+    </p>
+  </div>
+
+  <script>
+    // --- Configuration: BLE UUIDs ---
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+    // Servo limits configured in your ESP32 code: 0° to 100°
+    const MIN_ANGLE = 0;
+    const MAX_ANGLE = 100;
+    const CENTER_ANGLE = (MIN_ANGLE + MAX_ANGLE) / 2; // 50° is straight ahead
+
+    let bleDevice = null;
+    let bleCharacteristic = null;
+
+    // --- Web Audio Context & Synthesizer ---
+    let audioCtx = null;
+    let pannerNode = null;
+    let masterGain = null;
+    let lastAudioTriggerTime = 0;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Equal-Power Stereo Panner Node
+        pannerNode = audioCtx.createStereoPanner();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.5;
+
+        pannerNode.connect(masterGain);
+        masterGain.connect(audioCtx.destination);
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    /**
+     * Plays a directionally panned procedural audio blip.
+     * @param {number} panValue -1.0 (Hard Left) to +1.0 (Hard Right)
+     * @param {number} frequency Frequency in Hz (higher = closer obstacle)
+     */
+    function playSpatialPing(panValue, frequency) {
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+
+      // Position the audio in stereo field
+      pannerNode.pan.setValueAtTime(panValue, now);
+
+      const osc = audioCtx.createOscillator();
+      const noteGain = audioCtx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(frequency, now);
+
+      // Percussive volume envelope (avoids speaker click)
+      noteGain.gain.setValueAtTime(0.0001, now);
+      noteGain.gain.linearRampToValueAtTime(0.6, now + 0.015);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+
+      osc.connect(noteGain);
+      noteGain.connect(pannerNode);
+
+      osc.start(now);
+      osc.stop(now + 0.085);
+    }
+
+    // --- Bluetooth Low Energy Logic ---
+    async function connectBLE() {
+      initAudio(); // Initialize audio context on user interaction gesture
+
+      try {
+        updateStatus("Scanning...", false);
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: "EchoGuide_ESP32" }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+        updateStatus("Connecting...", false);
+        const server = await bleDevice.gatt.connect();
+
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        await bleCharacteristic.startNotifications();
+        bleCharacteristic.addEventListener('characteristicvaluechanged', handleIncomingData);
+
+        updateStatus("Connected", true);
+        document.getElementById("btnConnect").style.display = "none";
+        document.getElementById("btnDisconnect").style.display = "block";
+
+      } catch (err) {
+        console.error("BLE Error:", err);
+        updateStatus("Disconnected", false);
+        alert("Bluetooth connection failed: " + err.message);
+      }
+    }
+
+    function disconnectBLE() {
+      if (bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+      }
+      onDisconnected();
+    }
+
+    function onDisconnected() {
+      updateStatus("Disconnected", false);
+      document.getElementById("btnConnect").style.display = "block";
+      document.getElementById("btnDisconnect").style.display = "none";
+      document.getElementById("valAngle").innerText = "--°";
+      document.getElementById("valDistance").innerText = "-- cm";
+      document.getElementById("valDir").innerText = "--";
+    }
+
+    function updateStatus(text, isActive) {
+      document.getElementById("statusText").innerText = text;
+      const dot = document.getElementById("statusDot");
+      if (isActive) dot.classList.add("active");
+      else dot.classList.remove("active");
+    }
+
+    // --- Packet Parser & Sensor Processing ---
+    let obstacleHistory = []; // Points for radar visualization
+
+    function handleIncomingData(event) {
+      const decoder = new TextDecoder("utf-8");
+      const packet = decoder.decode(event.target.value);
+
+      // Packet format: "$<angle>,<distance>\n"
+      if (packet.startsWith("$")) {
+        const parts = packet.replace("$", "").trim().split(",");
+        if (parts.length === 2) {
+          const angle = parseInt(parts[0], 10);
+          const distance = parseInt(parts[1], 10);
+
+          if (!isNaN(angle) && !isNaN(distance)) {
+            processSensorData(angle, distance);
+          }
+        }
+      }
+    }
+
+    function processSensorData(angle, distance) {
+      // 1. Update UI Readouts
+      document.getElementById("valAngle").innerText = `${angle}°`;
+      document.getElementById("valDistance").innerText = distance >= 400 ? ">400 cm" : `${distance} cm`;
+
+      // 2. Determine Sector / Direction
+      let dirLabel = "Center";
+      if (angle < 40) dirLabel = "Left";
+      else if (angle > 60) dirLabel = "Right";
+      document.getElementById("valDir").innerText = dirLabel;
+
+      // 3. Cache for Radar Renderer
+      currentSweepAngle = angle;
+      if (distance < 300) {
+        obstacleHistory.push({ angle, distance, timestamp: Date.now() });
+      }
+
+      // 4. Spatial Audio Cue Mapping
+      // Only emit sound if an obstacle is within 200 cm
+      if (distance < 200) {
+        const currentTime = performance.now();
+        
+        // Closer distance = faster repeat cadence (100ms at 20cm, 500ms at 200cm)
+        const repetitionInterval = 100 + (distance * 2.0);
+
+        if (currentTime - lastAudioTriggerTime > repetitionInterval) {
+          lastAudioTriggerTime = currentTime;
+
+          // Pan: Map angle [0° to 100°] -> [-1.0 (Left) to +1.0 (Right)]
+          const pan = ((angle - CENTER_ANGLE) / (MAX_ANGLE - CENTER_ANGLE));
+          const clampedPan = Math.max(-1.0, Math.min(1.0, pan));
+
+          // Pitch: 20cm -> 1200Hz (high), 200cm -> 400Hz (low)
+          const pitch = 1200 - (distance * 4.0);
+          const clampedPitch = Math.max(350, Math.min(1400, pitch));
+
+          playSpatialPing(clampedPan, clampedPitch);
+        }
+      }
+    }
+
+    // --- Canvas Radar Visualizer ---
+    const canvas = document.getElementById("radarCanvas");
+    const ctx = canvas.getContext("2d");
+    let currentSweepAngle = 50;
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function drawRadar() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height * 0.92;
+      const maxRadius = Math.min(canvas.width * 0.46, canvas.height * 0.85);
+
+      // 1. Draw Range Rings (50cm, 100cm, 150cm, 200cm)
+      const ringSteps = [0.25, 0.5, 0.75, 1.0];
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.15)";
+      ctx.lineWidth = 1;
+
+      ringSteps.forEach(ratio => {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, maxRadius * ratio, Math.PI, 2 * Math.PI);
+        ctx.stroke();
+      });
+
+      // 2. Draw Angle Rays (Left, Center, Right)
+      const rayAngles = [0, 25, 50, 75, 100];
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.1)";
+      rayAngles.forEach(deg => {
+        // Map 0°-100° to visual arc (180° left to 0° right on standard polar circle)
+        const rad = Math.PI + (deg / 100) * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX + maxRadius * Math.cos(rad), centerY + maxRadius * Math.sin(rad));
+        ctx.stroke();
+      });
+
+      // 3. Draw Historical Obstacle Blips (fade out over 1.5 seconds)
+      const now = Date.now();
+      obstacleHistory = obstacleHistory.filter(pt => now - pt.timestamp < 1500);
+
+      obstacleHistory.forEach(pt => {
+        const age = now - pt.timestamp;
+        const opacity = (1 - age / 1500).toFixed(2);
+        const rad = Math.PI + (pt.angle / 100) * Math.PI;
+        const distRatio = Math.min(pt.distance / 200, 1.0);
+        const r = distRatio * maxRadius;
+
+        const x = centerX + r * Math.cos(rad);
+        const y = centerY + r * Math.sin(rad);
+
+        ctx.fillStyle = `rgba(255, 51, 102, ${opacity})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      // 4. Draw Active Sweep Needle
+      const sweepRad = Math.PI + (currentSweepAngle / 100) * Math.PI;
+      ctx.strokeStyle = "#00e5ff";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(centerX + maxRadius * Math.cos(sweepRad), centerY + maxRadius * Math.sin(sweepRad));
+      ctx.stroke();
+
+      requestAnimationFrame(drawRadar);
+    }
+
+    drawRadar();
+  </script>
+</body>
+</html>
