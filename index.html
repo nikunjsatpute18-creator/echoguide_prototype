@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0b1018" />
-  <meta name="description" content="EchoGuide spatial navigation dashboard with live ESP32 radar telemetry and stereo audio steering." />
-  <title>EchoGuide | Spatial Navigation</title>
+  <meta name="description" content="EchoGuide spatial navigation dashboard with live ESP32 DEVKIT-V1 radar telemetry and binaural steering." />
+  <title>EchoGuide | ESP32 DEVKIT-V1 Spatial Navigation</title>
   <style>
     :root {
       color-scheme: dark;
@@ -74,10 +74,13 @@
       display: inline-flex; align-items: center; gap: 9px; white-space: nowrap;
       padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px;
       background: rgba(17, 25, 35, .8); color: var(--muted); font-size: .76rem; font-weight: 600;
+      transition: all .2s ease;
     }
     .pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--subtle); box-shadow: 0 0 0 4px rgba(100, 116, 136, .12); transition: background .3s, box-shadow .3s; }
     .connection-pill.connected { color: var(--green); border-color: rgba(118, 227, 173, .22); }
     .connection-pill.connected .pill-dot { background: var(--green); box-shadow: 0 0 0 4px rgba(118, 227, 173, .12); }
+    .connection-pill.disconnected { color: var(--red); border-color: rgba(255, 110, 131, .25); }
+    .connection-pill.disconnected .pill-dot { background: var(--red); box-shadow: 0 0 0 4px rgba(255, 110, 131, .12); }
 
     .page-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding: 28px 0 22px; }
     .eyebrow { display: flex; align-items: center; gap: 8px; color: var(--cyan); font-size: .7rem; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
@@ -113,6 +116,8 @@
     .subtle-tag .pill-dot { width: 6px; height: 6px; box-shadow: none; }
     .subtle-tag.live { color: var(--green); border-color: rgba(118, 227, 173, .18); }
     .subtle-tag.live .pill-dot { background: var(--green); }
+    .subtle-tag.offline { color: var(--red); border-color: rgba(255, 110, 131, .2); }
+    .subtle-tag.offline .pill-dot { background: var(--red); }
 
     .radar-stage { position: relative; padding: 0 18px; }
     .radar-wrap {
@@ -137,6 +142,7 @@
     .direction-text.clear { color: var(--green); }
     .direction-text.left, .direction-text.right { color: var(--cyan); }
     .direction-text.hazard { color: var(--red); }
+    .direction-text.offline { color: var(--subtle); }
     .pan-box { text-align: right; flex: 0 0 auto; }
     .pan-value { font-variant-numeric: tabular-nums; font-size: 1.6rem; line-height: 1; font-weight: 750; letter-spacing: -.045em; }
     .pan-unit { color: var(--muted); font-size: .74rem; }
@@ -183,18 +189,39 @@
     .btn {
       width: 100%; min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
       padding: 12px 16px; border: 1px solid transparent; border-radius: 12px; cursor: pointer;
-      font-size: .84rem; font-weight: 700; transition: transform .16s ease, background .16s ease, border-color .16s ease;
+      font-size: .84rem; font-weight: 700; transition: transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease;
     }
     .btn:hover:not(:disabled) { transform: translateY(-1px); }
     .btn:active:not(:disabled) { transform: translateY(0); }
-    .btn:disabled { cursor: not-allowed; opacity: .55; }
     .btn svg { width: 17px; height: 17px; }
     .btn-primary { color: #08161a; background: var(--cyan); box-shadow: 0 4px 18px rgba(87,229,242,.15); }
     .btn-primary:hover:not(:disabled) { background: #7beaf3; }
     .btn-primary.active { color: #091a11; background: var(--green); }
     .btn-secondary { margin-top: 10px; color: var(--text); border-color: var(--line-strong); background: #16202c; }
     .btn-secondary:hover:not(:disabled) { background: #1b2837; border-color: rgba(87,229,242,.26); }
-    
+
+    /* Hardware Action Buttons */
+    .btn-disconnect {
+      background: rgba(255, 110, 131, .12);
+      border-color: rgba(255, 110, 131, .32);
+      color: var(--red);
+      margin-top: 14px;
+    }
+    .btn-disconnect:hover {
+      background: rgba(255, 110, 131, .2);
+      border-color: var(--red);
+    }
+    .btn-connect {
+      background: rgba(118, 227, 173, .12);
+      border-color: rgba(118, 227, 173, .32);
+      color: var(--green);
+      margin-top: 14px;
+    }
+    .btn-connect:hover {
+      background: rgba(118, 227, 173, .22);
+      border-color: var(--green);
+    }
+
     .upload-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
     .upload-copy { min-width: 0; }
     .upload-copy strong { display: block; font-size: .75rem; font-weight: 650; }
@@ -210,13 +237,15 @@
     .device-icon svg { width: 22px; height: 22px; }
     .device-name { font-size: .86rem; font-weight: 720; }
     .device-description { margin-top: 4px; color: var(--muted); font-size: .72rem; line-height: 1.45; }
-    .device-detail { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); font-size: .75rem; }
+    .device-detail { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: .75rem; }
     .device-detail span { color: var(--muted); }
     .device-detail strong { text-align: right; font-weight: 650; }
     .device-status { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
     .device-status .pill-dot { width: 6px; height: 6px; box-shadow: none; }
     .device-status.connected { color: var(--green); }
     .device-status.connected .pill-dot { background: var(--green); }
+    .device-status.disconnected { color: var(--red); }
+    .device-status.disconnected .pill-dot { background: var(--red); }
     .notice { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px; border: 1px solid rgba(255,209,138,.14); border-radius: 11px; background: rgba(255,209,138,.04); color: var(--muted); font-size: .7rem; line-height: 1.55; }
     .notice svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--amber); margin-top: 2px; }
 
@@ -287,11 +316,11 @@
       <div class="topbar-right">
         <div class="environment-tag">
           <span class="pill-dot"></span>
-          <span>Mesh Node #04</span>
+          <span>Node: ESP32-DEVKIT-V1</span>
         </div>
         <button id="connToggleBtn" class="connection-pill connected" aria-label="Toggle device connection">
           <span class="pill-dot"></span>
-          <span id="connLabel">ESP32 Live</span>
+          <span id="connLabel">DEVKIT-V1 Live</span>
         </button>
       </div>
     </header>
@@ -305,7 +334,7 @@
         </div>
         <h1>Spatial Navigation Dashboard</h1>
         <p class="page-description">
-          Active obstacle mapping and real-time binaural steering guidance streaming from the head-mounted ESP32 sensor cluster.
+          Active obstacle mapping and real-time binaural steering guidance streaming from the head-mounted ESP32 DEVKIT - V1 sensor cluster.
         </p>
       </div>
 
@@ -317,7 +346,7 @@
         </div>
         <div>
           <strong>Sector Alpha-1</strong>
-          <span>Sync Rate: 20 Hz (Low Latency)</span>
+          <span>UART / WebSocket Stream @ 20 Hz</span>
         </div>
       </div>
     </section>
@@ -391,9 +420,9 @@
               <h2 class="panel-title">Forward Sector Radar Matrix</h2>
               <div class="panel-kicker">180° front-facing ultrasonic telemetry & echo cluster mapping</div>
             </div>
-            <div class="subtle-tag live">
+            <div class="subtle-tag live" id="radarStatusTag">
               <span class="pill-dot"></span>
-              <span>Scanning</span>
+              <span id="radarStatusLabel">Scanning</span>
             </div>
           </div>
 
@@ -417,7 +446,7 @@
             </div>
 
             <div class="radar-foot">
-              <span>Sensor Origin: <strong>ESP32-S3 Array A</strong></span>
+              <span>Sensor Origin: <strong>ESP32 DEVKIT-V1 Array</strong></span>
               <span>Resolution: <strong>1.5° Arc</strong></span>
               <span>Cluster Count: <strong id="valBlipCount">3 Targets</strong></span>
             </div>
@@ -554,12 +583,12 @@
           </div>
         </article>
 
-        <!-- ESP32 Hardware Diagnostics -->
+        <!-- ESP32 DEVKIT-V1 Diagnostics & Hardware Link -->
         <article class="panel">
           <div class="panel-header">
             <div>
               <h2 class="panel-title">Transceiver Telemetry</h2>
-              <div class="panel-kicker">ESP32-S3 dual-core microcontroller stats</div>
+              <div class="panel-kicker">ESP32 DEVKIT - V1 microcontroller link</div>
             </div>
           </div>
 
@@ -580,38 +609,47 @@
                 </svg>
               </div>
               <div>
-                <div class="device-name">ESP32-S3-WROOM-1</div>
-                <div class="device-description">Dual-core Xtensa LX7 @ 240 MHz</div>
+                <div class="device-name">ESP32 DEVKIT - V1</div>
+                <div class="device-description">ESP-WROOM-32 (Xtensa LX6 @ 240 MHz)</div>
               </div>
             </div>
 
             <div class="device-detail">
               <span>Firmware Version</span>
-              <strong>v2.4.1-rc3</strong>
+              <strong>v2.1.0-devkit</strong>
             </div>
 
             <div class="device-detail">
               <span>Link Protocol</span>
-              <strong>WebSockets / Binary</strong>
+              <strong>Serial / WebSockets</strong>
             </div>
 
             <div class="device-detail">
-              <span>Transceiver RSSI</span>
+              <span>Wi-Fi RSSI</span>
               <strong id="valRssi">-58 dBm</strong>
             </div>
 
             <div class="device-detail">
-              <span>Battery Status</span>
-              <strong style="color: var(--lime);">89% (4.12V)</strong>
+              <span>Battery Rail</span>
+              <strong style="color: var(--lime);">89% (4.12V LiPo)</strong>
             </div>
 
             <div class="device-detail">
-              <span>Hardware Link</span>
+              <span>Link Status</span>
               <span class="device-status connected" id="deviceStatusIndicator">
                 <span class="pill-dot"></span>
-                <span>Active Link</span>
+                <span id="deviceStatusText">Active Link</span>
               </span>
             </div>
+
+            <!-- Dedicated Connect / Disconnect Action Button -->
+            <button id="esp32ConnectBtn" class="btn btn-disconnect">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                <line x1="12" y1="2" x2="12" y2="12"></line>
+              </svg>
+              <span id="esp32BtnLabel">Disconnect ESP32</span>
+            </button>
 
             <div class="notice">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -619,7 +657,7 @@
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
               </svg>
-              <span>Dynamic steer damping active. Audio pan calculates target clearance margin using high-priority front-cone weighting.</span>
+              <span>ESP32 DEVKIT - V1 dual-core handling: Core 0 dedicated to ultrasonic ping calculations; Core 1 processing telemetry serialization.</span>
             </div>
           </div>
         </article>
@@ -637,9 +675,9 @@
       </div>
 
       <div class="footer-right">
-        <span>Hardware: ESP32-S3 HC-SR04/VL53L1X</span>
+        <span>Hardware: ESP32 DEVKIT - V1 • HC-SR04 Transducers</span>
         <span class="footer-separator"></span>
-        <span>Status: Synchronized</span>
+        <span id="footerSyncStatus">Status: Synchronized</span>
       </div>
     </footer>
   </div>
@@ -649,7 +687,7 @@
 
   <script>
     /**
-     * EchoGuide Spatial Navigation Engine
+     * EchoGuide Spatial Navigation Engine (ESP32 DEVKIT-V1 Edition)
      * Handles radar canvas rendering, synthetic telemetry, and Web Audio API spatial steering.
      */
     (function () {
@@ -671,16 +709,25 @@
       const trackNameDisplay = document.getElementById('trackNameDisplay');
       const fileInput = document.getElementById('fileInput');
       const addObstacleBtn = document.getElementById('addObstacleBtn');
-      const connToggleBtn = document.getElementById('connToggleBtn');
-      const connLabel = document.getElementById('connLabel');
-      const deviceStatusIndicator = document.getElementById('deviceStatusIndicator');
       const toastEl = document.getElementById('toast');
 
-      // Metric DOM references
+      // Connection Elements
+      const connToggleBtn = document.getElementById('connToggleBtn');
+      const connLabel = document.getElementById('connLabel');
+      const esp32ConnectBtn = document.getElementById('esp32ConnectBtn');
+      const esp32BtnLabel = document.getElementById('esp32BtnLabel');
+      const deviceStatusIndicator = document.getElementById('deviceStatusIndicator');
+      const deviceStatusText = document.getElementById('deviceStatusText');
+      const radarStatusTag = document.getElementById('radarStatusTag');
+      const radarStatusLabel = document.getElementById('radarStatusLabel');
+      const footerSyncStatus = document.getElementById('footerSyncStatus');
+
+      // Metric Indicators
       const valLatency = document.getElementById('valLatency');
       const valDistance = document.getElementById('valDistance');
       const valPackets = document.getElementById('valPackets');
       const valBlipCount = document.getElementById('valBlipCount');
+      const valRssi = document.getElementById('valRssi');
 
       // --- System State ---
       const state = {
@@ -696,7 +743,7 @@
           { angleDeg: 125, distMeters: 2.6, intensity: 0.9, age: 0 },
           { angleDeg: 80, distMeters: 3.2, intensity: 0.7, age: 0 }
         ],
-        currentPan: 0.0,      // Range: -1.0 (hard left) to +1.0 (hard right)
+        currentPan: 0.0,
         targetPan: 0.0
       };
 
@@ -704,7 +751,6 @@
       let audioCtx = null;
       let pannerNode = null;
       let masterGainNode = null;
-      let synthOscillator = null;
       let pulseInterval = null;
 
       function showToast(msg) {
@@ -729,7 +775,6 @@
         masterGainNode = audioCtx.createGain();
         masterGainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
 
-        // Native stereo panner node
         if (audioCtx.createStereoPanner) {
           pannerNode = audioCtx.createStereoPanner();
           pannerNode.pan.setValueAtTime(state.currentPan, audioCtx.currentTime);
@@ -745,14 +790,12 @@
       function startPulseOscillator() {
         if (pulseInterval) clearInterval(pulseInterval);
 
-        // Periodic acoustic radar guide pulse
         pulseInterval = setInterval(() => {
-          if (!state.audioActive || !audioCtx) return;
+          if (!state.audioActive || !audioCtx || !state.connected) return;
 
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
 
-          // Frequency shifts higher when an obstacle is close
           const nearest = getNearestTarget();
           const baseFreq = nearest ? 380 + (4 - Math.min(nearest.distMeters, 4)) * 140 : 440;
 
@@ -775,7 +818,7 @@
         if (audioCtx) audioCtx.suspend();
       }
 
-      // --- Radar Canvas Rendering ---
+      // --- Canvas Sizing ---
       function resizeCanvas() {
         const rect = canvas.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
@@ -792,10 +835,15 @@
         return state.targets.reduce((prev, curr) => (curr.distMeters < prev.distMeters ? curr : prev));
       }
 
+      // --- Telemetry & Physics Loop ---
       function updatePhysics() {
-        if (!state.connected) return;
+        if (!state.connected) {
+          directionText.textContent = 'ESP32 STANDBY / OFFLINE';
+          directionText.className = 'direction-text offline';
+          return;
+        }
 
-        // Oscillate radar sweep beam across 180° front sector
+        // Radar oscillation
         state.sweepAngle += state.sweepSpeed * state.sweepDirection;
         if (state.sweepAngle >= Math.PI) {
           state.sweepAngle = Math.PI;
@@ -809,16 +857,12 @@
         state.packetCount += Math.floor(Math.random() * 2);
         valPackets.textContent = state.packetCount.toLocaleString();
 
-        // Calculate nearest target steering pan
+        // Calculate nearest target steering offset
         const nearest = getNearestTarget();
         if (nearest) {
           valDistance.innerHTML = `${nearest.distMeters.toFixed(1)}<small>m</small>`;
           
-          // An obstacle at 0° (left) produces a push towards right (+pan)
-          // 90° is directly forward; <90° is left obstacle; >90° is right obstacle.
           const offsetFromCenter = (nearest.angleDeg - 90) / 90; // -1 (left) to +1 (right)
-          
-          // Guide path urges moving away from nearest obstacle
           state.targetPan = -offsetFromCenter * 0.85;
 
           if (nearest.distMeters < 1.2) {
@@ -841,7 +885,7 @@
           directionText.className = 'direction-text clear';
         }
 
-        // Smoothly interpolate current pan towards target
+        // Smooth panning interpolation
         state.currentPan += (state.targetPan - state.currentPan) * 0.08;
 
         // Update UI Gauge and Ear Volumes
@@ -849,7 +893,6 @@
         panValueEl.textContent = (panClamp > 0 ? '+' : '') + panClamp.toFixed(2);
         gaugePointer.style.left = `${50 + panClamp * 44}%`;
 
-        // Volume balance calculation
         const leftVol = Math.round((1 - panClamp) * 50);
         const rightVol = Math.round((1 + panClamp) * 50);
         leftVolText.textContent = `${leftVol}%`;
@@ -857,15 +900,14 @@
         leftVolBar.style.width = `${leftVol}%`;
         rightVolBar.style.width = `${rightVol}%`;
 
-        // Update Web Audio Pan node
         if (pannerNode && audioCtx && audioCtx.state === 'running') {
           pannerNode.pan.setValueAtTime(panClamp, audioCtx.currentTime);
         }
 
-        // Update blip counts
         valBlipCount.textContent = `${state.targets.length} Target${state.targets.length === 1 ? '' : 's'}`;
       }
 
+      // --- Radar Rendering ---
       function drawRadar() {
         const rect = canvas.getBoundingClientRect();
         const width = rect.width;
@@ -873,30 +915,28 @@
 
         ctx.clearRect(0, 0, width, height);
 
-        // Center origin at bottom center
         const cx = width / 2;
         const cy = height * 0.94;
         const maxRadius = Math.min(width * 0.46, height * 0.86);
 
-        // 1. Draw Range Grid Rings (0.5m, 1.0m, 2.0m, 3.0m, 4.0m)
+        // 1. Grid Rings
         const rings = [0.25, 0.5, 0.75, 1.0];
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgba(87, 229, 242, 0.12)';
         ctx.fillStyle = 'rgba(141, 156, 175, 0.45)';
         ctx.font = '10px Inter, monospace';
 
-        rings.forEach((ratio, idx) => {
+        rings.forEach((ratio) => {
           const r = maxRadius * ratio;
           ctx.beginPath();
           ctx.arc(cx, cy, r, Math.PI, 0, false);
           ctx.stroke();
 
-          // Distance labels
           const distLabel = (state.maxRangeMeters * ratio).toFixed(1) + 'm';
           ctx.fillText(distLabel, cx + 6, cy - r + 12);
         });
 
-        // 2. Draw Angular Spokes (30°, 60°, 90°, 120°, 150°)
+        // 2. Spokes
         const angles = [Math.PI / 6, Math.PI / 3, Math.PI / 2, (2 * Math.PI) / 3, (5 * Math.PI) / 6];
         angles.forEach((angle) => {
           const ex = cx + Math.cos(Math.PI - angle) * maxRadius;
@@ -908,12 +948,11 @@
           ctx.stroke();
         });
 
-        // 3. Draw Radar Sweep Line and Fade Cone
+        // 3. Sweep Beam
         if (state.connected) {
           const sweepX = cx + Math.cos(Math.PI - state.sweepAngle) * maxRadius;
           const sweepY = cy - Math.sin(Math.PI - state.sweepAngle) * maxRadius;
 
-          // Sweep beam cone gradient
           const trailAngle = state.sweepDirection > 0 ? 0.22 : -0.22;
           const coneGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxRadius);
           coneGradient.addColorStop(0, 'rgba(87, 229, 242, 0.25)');
@@ -929,47 +968,52 @@
           ctx.fill();
           ctx.restore();
 
-          // Active Sweep Line
           ctx.beginPath();
           ctx.moveTo(cx, cy);
           ctx.lineTo(sweepX, sweepY);
           ctx.lineWidth = 2;
           ctx.strokeStyle = 'rgba(87, 229, 242, 0.85)';
           ctx.stroke();
+        } else {
+          // Offline indicator overlay text
+          ctx.fillStyle = 'rgba(255, 110, 131, 0.7)';
+          ctx.font = '12px Inter, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('ESP32 DEVKIT-V1 DISCONNECTED — TELEMETRY HALTED', cx, cy - maxRadius * 0.45);
+          ctx.textAlign = 'start';
         }
 
-        // 4. Render Detected Targets
-        state.targets.forEach((target) => {
-          const rad = (target.angleDeg * Math.PI) / 180;
-          const r = (target.distMeters / state.maxRangeMeters) * maxRadius;
-          const tx = cx + Math.cos(Math.PI - rad) * r;
-          const ty = cy - Math.sin(Math.PI - rad) * r;
+        // 4. Render Targets
+        if (state.connected) {
+          state.targets.forEach((target) => {
+            const rad = (target.angleDeg * Math.PI) / 180;
+            const r = (target.distMeters / state.maxRangeMeters) * maxRadius;
+            const tx = cx + Math.cos(Math.PI - rad) * r;
+            const ty = cy - Math.sin(Math.PI - rad) * r;
 
-          const isCritical = target.distMeters < 1.4;
-          const color = isCritical ? 'rgba(255, 110, 131, ' : 'rgba(87, 229, 242, ';
+            const isCritical = target.distMeters < 1.4;
+            const color = isCritical ? 'rgba(255, 110, 131, ' : 'rgba(87, 229, 242, ';
 
-          // Blip aura
-          ctx.beginPath();
-          ctx.arc(tx, ty, 6, 0, Math.PI * 2);
-          ctx.fillStyle = color + '0.25)';
-          ctx.fill();
+            ctx.beginPath();
+            ctx.arc(tx, ty, 6, 0, Math.PI * 2);
+            ctx.fillStyle = color + '0.25)';
+            ctx.fill();
 
-          // Blip core
-          ctx.beginPath();
-          ctx.arc(tx, ty, 3, 0, Math.PI * 2);
-          ctx.fillStyle = color + '1)';
-          ctx.fill();
+            ctx.beginPath();
+            ctx.arc(tx, ty, 3, 0, Math.PI * 2);
+            ctx.fillStyle = color + '1)';
+            ctx.fill();
 
-          // Distance callout label
-          ctx.fillStyle = 'rgba(237, 244, 250, 0.7)';
-          ctx.font = '9px Inter, monospace';
-          ctx.fillText(`${target.distMeters.toFixed(1)}m`, tx + 8, ty - 2);
-        });
+            ctx.fillStyle = 'rgba(237, 244, 250, 0.7)';
+            ctx.font = '9px Inter, monospace';
+            ctx.fillText(`${target.distMeters.toFixed(1)}m`, tx + 8, ty - 2);
+          });
+        }
 
-        // 5. Origin Indicator Dot
+        // 5. Sensor Origin Center
         ctx.beginPath();
         ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-        ctx.fillStyle = 'var(--cyan)';
+        ctx.fillStyle = state.connected ? 'var(--cyan)' : 'var(--red)';
         ctx.fill();
       }
 
@@ -980,9 +1024,59 @@
       }
       requestAnimationFrame(animationLoop);
 
-      // --- Interactive Controls ---
+      // --- Connect / Disconnect Handler ---
+      function setConnectionState(isConnected) {
+        state.connected = isConnected;
 
-      // Audio Activation Toggle
+        if (state.connected) {
+          // Button state
+          esp32ConnectBtn.className = 'btn btn-disconnect';
+          esp32BtnLabel.textContent = 'Disconnect ESP32';
+
+          // Indicators
+          connToggleBtn.className = 'connection-pill connected';
+          connLabel.textContent = 'DEVKIT-V1 Live';
+
+          deviceStatusIndicator.className = 'device-status connected';
+          deviceStatusText.textContent = 'Active Link';
+
+          radarStatusTag.className = 'subtle-tag live';
+          radarStatusLabel.textContent = 'Scanning';
+
+          valLatency.innerHTML = '14<small>ms</small>';
+          valRssi.textContent = '-58 dBm';
+          footerSyncStatus.textContent = 'Status: Synchronized';
+
+          showToast('ESP32 DEVKIT-V1 connected. Telemetry stream resumed.');
+        } else {
+          // Button state
+          esp32ConnectBtn.className = 'btn btn-connect';
+          esp32BtnLabel.textContent = 'Connect ESP32';
+
+          // Indicators
+          connToggleBtn.className = 'connection-pill disconnected';
+          connLabel.textContent = 'DEVKIT-V1 Offline';
+
+          deviceStatusIndicator.className = 'device-status disconnected';
+          deviceStatusText.textContent = 'Link Severed';
+
+          radarStatusTag.className = 'subtle-tag offline';
+          radarStatusLabel.textContent = 'Standby';
+
+          valLatency.innerHTML = '--<small>ms</small>';
+          valRssi.textContent = 'No Signal';
+          valDistance.innerHTML = '--<small>m</small>';
+          footerSyncStatus.textContent = 'Status: Disconnected';
+
+          showToast('ESP32 DEVKIT-V1 disconnected.');
+        }
+      }
+
+      // Hook both the dedicated button and topbar pill
+      esp32ConnectBtn.addEventListener('click', () => setConnectionState(!state.connected));
+      connToggleBtn.addEventListener('click', () => setConnectionState(!state.connected));
+
+      // Audio Toggle Button
       toggleAudioBtn.addEventListener('click', () => {
         state.audioActive = !state.audioActive;
         if (state.audioActive) {
@@ -1013,18 +1107,22 @@
 
       // Inject Target on Radar
       addObstacleBtn.addEventListener('click', () => {
+        if (!state.connected) {
+          showToast('Cannot inject targets: ESP32 DEVKIT-V1 is offline.');
+          return;
+        }
         const randAngle = Math.floor(20 + Math.random() * 140);
         const randDist = parseFloat((0.8 + Math.random() * 2.8).toFixed(1));
         state.targets.push({ angleDeg: randAngle, distMeters: randDist, intensity: 1.0, age: 0 });
 
-        if (state.targets.length > 6) {
-          state.targets.shift(); // Maintain reasonable list size
-        }
+        if (state.targets.length > 6) state.targets.shift();
         showToast(`Target registered: ${randDist}m at ${randAngle}°`);
       });
 
       // Canvas Interactive Click / Tap target creation
       canvas.addEventListener('click', (e) => {
+        if (!state.connected) return;
+
         const rect = canvas.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
@@ -1060,27 +1158,7 @@
         }
       });
 
-      // Connection Toggle
-      connToggleBtn.addEventListener('click', () => {
-        state.connected = !state.connected;
-        if (state.connected) {
-          connToggleBtn.className = 'connection-pill connected';
-          connLabel.textContent = 'ESP32 Live';
-          deviceStatusIndicator.className = 'device-status connected';
-          deviceStatusIndicator.querySelector('span:last-child').textContent = 'Active Link';
-          valLatency.innerHTML = '14<small>ms</small>';
-          showToast('WebSocket restored: ESP32 telemetry streaming.');
-        } else {
-          connToggleBtn.className = 'connection-pill';
-          connLabel.textContent = 'Disconnected';
-          deviceStatusIndicator.className = 'device-status';
-          deviceStatusIndicator.querySelector('span:last-child').textContent = 'Offline';
-          valLatency.innerHTML = '--<small>ms</small>';
-          showToast('Telemetry paused. Sensor disconnected.');
-        }
-      });
-
-      // Simulate periodic minor jitter in hardware telemetry
+      // Telemetry ping jitter simulation
       setInterval(() => {
         if (state.connected) {
           const jitter = 12 + Math.floor(Math.random() * 6);
