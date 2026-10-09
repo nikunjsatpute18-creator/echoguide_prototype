@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EchoGuide – Spatial Navigation & Music Panning</title>
+  <title>EchoGuide – Spatial Navigation</title>
   <style>
     :root {
-      --bg: #0b0f19;
-      --card: #151d2f;
+      --bg: #090d16;
+      --card: #131b2e;
       --accent: #00e5ff;
       --green: #10b981;
       --alert: #ff3366;
-      --text: #f0f4f8;
+      --text: #f1f5f9;
       --text-dim: #7e8c9f;
     }
 
@@ -34,19 +34,18 @@
 
     header {
       text-align: center;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     h1 {
       color: var(--accent);
       font-size: 1.8rem;
-      letter-spacing: 0.5px;
     }
 
     p.sub {
       color: var(--text-dim);
       font-size: 0.85rem;
-      margin-top: 4px;
+      margin-top: 2px;
     }
 
     .container {
@@ -54,7 +53,7 @@
       max-width: 480px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
     }
 
     .card {
@@ -69,10 +68,7 @@
     .radar-wrapper {
       position: relative;
       width: 100%;
-      padding-top: 60%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      padding-top: 55%;
     }
 
     canvas {
@@ -85,72 +81,58 @@
       background: radial-gradient(circle at 50% 90%, #1a233a 0%, #0d121d 100%);
     }
 
-    /* Telemetry Display */
-    .telemetry-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-top: 12px;
+    /* Steering Corridor Gauge */
+    .corridor-header {
       text-align: center;
+      margin-top: 8px;
     }
 
-    .stat-box {
-      background: rgba(255, 255, 255, 0.03);
-      padding: 8px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .stat-label {
-      font-size: 0.7rem;
-      color: var(--text-dim);
-      text-transform: uppercase;
-    }
-
-    .stat-value {
-      font-size: 1.2rem;
+    .corridor-label {
+      font-size: 1.3rem;
       font-weight: 700;
-      color: var(--accent);
-      margin-top: 2px;
+      color: var(--text);
     }
 
-    /* Earphone Balance Bar */
-    .ear-balance-container {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .balance-bar-bg {
+    .gauge-track {
       width: 100%;
       height: 10px;
       background: #1e293b;
       border-radius: 5px;
       position: relative;
-      overflow: hidden;
-      margin: 8px 0;
+      margin: 14px 0 6px 0;
     }
 
-    .balance-pointer {
+    .gauge-pointer {
       position: absolute;
-      top: 0;
+      top: -7px;
       left: 50%;
-      width: 14px;
-      height: 10px;
+      width: 24px;
+      height: 24px;
       background: var(--accent);
+      border-radius: 50%;
       transform: translateX(-50%);
-      transition: left 0.15s ease-out;
-      border-radius: 2px;
+      box-shadow: 0 0 10px var(--accent);
+      transition: left 0.1s ease-out;
     }
 
-    .balance-labels {
+    .gauge-markers {
       display: flex;
       justify-content: space-between;
       font-size: 0.75rem;
       color: var(--text-dim);
+      font-weight: 600;
     }
 
-    /* Controls & Buttons */
+    .ear-readouts {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.85rem;
+    }
+
+    /* Controls */
     .btn {
       width: 100%;
       padding: 12px;
@@ -171,20 +153,11 @@
       color: #03101e;
     }
 
-    .btn-ble:hover {
-      background: #33ecff;
-    }
-
-    .btn-disconnect {
-      background: #334155;
-      color: #f1f5f9;
-      display: none;
-    }
-
     .btn-music {
       background: #1e293b;
       color: var(--text);
       border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-top: 8px;
     }
 
     .btn-music.active {
@@ -193,18 +166,20 @@
       border: none;
     }
 
-    .custom-file {
-      display: none;
+    .file-input-wrapper {
+      margin-top: 8px;
+      text-align: center;
     }
 
     .file-btn {
-      display: block;
-      text-align: center;
       font-size: 0.8rem;
       color: var(--accent);
-      cursor: pointer;
       text-decoration: underline;
-      margin-top: 6px;
+      cursor: pointer;
+    }
+
+    #fileInput {
+      display: none;
     }
 
     .status-badge {
@@ -234,61 +209,58 @@
 
   <header>
     <h1>EchoGuide</h1>
-    <p class="sub">Spatial Audio Navigation & Music Balancing</p>
+    <p class="sub">Spatial Navigation & Corridor Steering</p>
   </header>
 
   <div class="container">
-    <!-- Radar Visualization Card -->
+    <!-- Visual Radar & Corridor Gauge -->
     <div class="card">
       <div class="radar-wrapper">
         <canvas id="radarCanvas"></canvas>
       </div>
 
-      <div class="telemetry-grid">
-        <div class="stat-box">
-          <div class="stat-label">Angle</div>
-          <div class="stat-value" id="valAngle">--°</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Distance</div>
-          <div class="stat-value" id="valDist">-- cm</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Obstacle</div>
-          <div class="stat-value" id="valZone">Clear</div>
+      <div class="corridor-header">
+        <div class="corridor-label" id="dirText">Path Ahead Clear</div>
+        <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">
+          Pan Index: <span id="panVal">0</span>
         </div>
       </div>
 
-      <div class="ear-balance-container">
-        <div class="balance-labels">
-          <span>Left Ear: <b id="leftEarVol">100%</b></span>
-          <span>Right Ear: <b id="rightEarVol">100%</b></span>
-        </div>
-        <div class="balance-bar-bg">
-          <div id="balancePointer" class="balance-pointer"></div>
-        </div>
+      <div class="gauge-track">
+        <div class="gauge-pointer" id="pointer"></div>
+      </div>
+      <div class="gauge-markers">
+        <span>LEFT (-100)</span>
+        <span>AHEAD (0)</span>
+        <span>RIGHT (+100)</span>
+      </div>
+
+      <div class="ear-readouts">
+        <span>Left Ear: <b id="leftVol">100%</b></span>
+        <span>Right Ear: <b id="rightVol">100%</b></span>
       </div>
     </div>
 
-    <!-- Music Player Card -->
+    <!-- Audio Player Controls -->
     <div class="card">
-      <button id="btnMusic" class="btn btn-music" onclick="toggleMusicPlayback()">
-        ▶ Play Background Music
+      <audio id="audioElement" loop crossorigin="anonymous"></audio>
+
+      <button id="btnPlayMusic" class="btn btn-music" onclick="toggleAudio()">
+        ▶ Play Navigation Track
       </button>
 
-      <label class="file-btn">
-        Load your own MP3 song
-        <input type="file" id="audioFileInput" class="custom-file" accept="audio/*">
-      </label>
+      <div class="file-input-wrapper">
+        <label class="file-btn">
+          Select custom MP3 song
+          <input type="file" id="fileInput" accept="audio/*">
+        </label>
+      </div>
     </div>
 
     <!-- Bluetooth Connection Card -->
     <div class="card">
       <button id="btnConnect" class="btn btn-ble" onclick="connectBLE()">
-        Connect EchoGuide (BLE)
-      </button>
-      <button id="btnDisconnect" class="btn btn-disconnect" onclick="disconnectBLE()">
-        Disconnect
+        Connect ESP32-Pan
       </button>
 
       <div class="status-badge">
@@ -299,121 +271,151 @@
   </div>
 
   <script>
-    // --- ESP32 Firmware Configuration ---
-    const DEVICE_NAME        = "EchoGuide_ESP32";
-    const SERVICE_UUID       = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-    const CHARACTERISTIC_UUID= "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const RADAR_UUID   = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+    const PAN_TX_UUID  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-    const MIN_ANGLE = 0;
-    const MAX_ANGLE = 100;
-    const CENTER_ANGLE = 50; // 50° is dead center for 0°-100° sweep
-
-    let bleDevice = null;
-    let bleCharacteristic = null;
-
-    // --- Web Audio Pipeline ---
-    let audioCtx = null;
-    let stereoPanner = null;
-    let masterGain = null;
-    let audioElement = null;
+    let ctx = null;
+    let panner = null;
+    const audio = document.getElementById('audioElement');
     let isPlaying = false;
 
+    // Default ambient test audio
+    audio.src = "https://actions.google.com/sounds/v1/weather/light_rain.ogg";
+
     function initAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        stereoPanner = audioCtx.createStereoPanner();
-        masterGain = audioCtx.createGain();
-
-        // High quality ambient music stream for testing
-        audioElement = new Audio("https://actions.google.com/sounds/v1/weather/light_rain.ogg");
-        audioElement.loop = true;
-        audioElement.crossOrigin = "anonymous";
-
-        const source = audioCtx.createMediaElementSource(audioElement);
-        source.connect(stereoPanner);
-        stereoPanner.connect(masterGain);
-        masterGain.connect(audioCtx.destination);
-
-        // Custom MP3 loader
-        document.getElementById("audioFileInput").addEventListener("change", function(e) {
-          const file = e.target.files[0];
-          if (file) {
-            audioElement.src = URL.createObjectURL(file);
-            if (isPlaying) audioElement.play();
-          }
-        });
+      if (!ctx) {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        panner = new StereoPannerNode(ctx, { pan: 0 });
+        const source = ctx.createMediaElementSource(audio);
+        source.connect(panner);
+        panner.connect(ctx.destination);
       }
-
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
       }
     }
 
-    function toggleMusicPlayback() {
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        audio.src = URL.createObjectURL(file);
+        if (isPlaying) audio.play();
+      }
+    });
+
+    function toggleAudio() {
       initAudio();
-      const btn = document.getElementById("btnMusic");
+      const btn = document.getElementById('btnPlayMusic');
 
       if (!isPlaying) {
-        audioElement.play().then(() => {
+        audio.play().then(() => {
           isPlaying = true;
-          btn.innerText = "⏸ Pause Background Music";
+          btn.innerText = "⏸ Pause Navigation Track";
           btn.classList.add("active");
-        }).catch(err => alert("Playback error: " + err.message));
+        }).catch(err => alert("Audio playback error: " + err.message));
       } else {
-        audioElement.pause();
+        audio.pause();
         isPlaying = false;
-        btn.innerText = "▶ Play Background Music";
+        btn.innerText = "▶ Play Navigation Track";
         btn.classList.remove("active");
       }
     }
 
-    // --- Web Bluetooth Handling ---
+    // --- Web Bluetooth Connection ---
     async function connectBLE() {
       initAudio();
 
       try {
-        updateStatus("Scanning for EchoGuide_ESP32...", false);
+        updateStatus("Scanning for ESP32-Pan...", false);
 
-        bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ name: DEVICE_NAME }],
+        // Compatible with both service filtering and explicit name matching
+        const dev = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [SERVICE_UUID] }],
           optionalServices: [SERVICE_UUID]
         });
 
-        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        dev.addEventListener('gattserverdisconnected', onDisconnected);
 
-        updateStatus("Connecting...", false);
-        const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        updateStatus("Connecting GATT...", false);
+        const srv = await dev.gatt.connect();
+        const primaryService = await srv.getPrimaryService(SERVICE_UUID);
 
-        await bleCharacteristic.startNotifications();
-        bleCharacteristic.addEventListener('characteristicvaluechanged', handleSensorStream);
+        // Subscribe to Channel 1 (Pan)
+        const chPan = await primaryService.getCharacteristic(PAN_TX_UUID);
+        await chPan.startNotifications();
+        chPan.addEventListener('characteristicvaluechanged', (e) => {
+          const v = parseInt(new TextDecoder().decode(e.target.value), 10);
+          if (!isNaN(v)) updateSteering(v);
+        });
 
-        updateStatus("Connected to EchoGuide_ESP32", true);
-        document.getElementById("btnConnect").style.display = "none";
-        document.getElementById("btnDisconnect").style.display = "block";
+        // Subscribe to Channel 2 (Radar Telemetry)
+        try {
+          const chRadar = await primaryService.getCharacteristic(RADAR_UUID);
+          await chRadar.startNotifications();
+          chRadar.addEventListener('characteristicvaluechanged', (e) => {
+            const raw = new TextDecoder().decode(e.target.value).trim();
+            if (raw.startsWith("$")) {
+              const parts = raw.substring(1).split(",");
+              if (parts.length === 2) {
+                const angle = parseInt(parts[0], 10);
+                const dist = parseInt(parts[1], 10);
+                if (!isNaN(angle) && !isNaN(dist)) processRadarPoint(angle, dist);
+              }
+            }
+          });
+        } catch (radarErr) {
+          console.warn("Radar characteristic not active; using audio mode only.");
+        }
+
+        updateStatus("Connected to ESP32-Pan", true);
+        document.getElementById('btnConnect').innerText = "Connected";
       } catch (err) {
         console.error("BLE Error:", err);
         updateStatus("Connection failed", false);
-        alert("Bluetooth Error: " + err.message);
+        alert("Bluetooth connection failed: " + err.message);
       }
     }
 
-    function disconnectBLE() {
-      if (bleDevice && bleDevice.gatt.connected) {
-        bleDevice.gatt.disconnect();
+    function updateSteering(val) {
+      const panClamped = Math.max(-100, Math.min(100, val));
+      const normalizedPan = panClamped / 100.0;
+
+      // Equal-power / target pan smoothing
+      if (panner && ctx) {
+        panner.pan.setTargetAtTime(normalizedPan, ctx.currentTime, 0.1);
       }
-      onDisconnected();
+
+      document.getElementById('panVal').textContent = panClamped;
+
+      // Update visual gauge pointer
+      const pointerPercent = ((panClamped + 100) / 200) * 100;
+      document.getElementById('pointer').style.left = `${pointerPercent}%`;
+
+      // Text guidance
+      const dirText = document.getElementById('dirText');
+      if (panClamped <= -20) {
+        dirText.innerText = `Steer Left (${Math.abs(panClamped)}%)`;
+        dirText.style.color = "#38bdf8";
+      } else if (panClamped >= 20) {
+        dirText.innerText = `Steer Right (${panClamped}%)`;
+        dirText.style.color = "#38bdf8";
+      } else {
+        dirText.innerText = "Path Ahead Clear";
+        dirText.style.color = "var(--green)";
+      }
+
+      // Volume percentages
+      const leftPerc = panClamped <= 0 ? 100 : Math.round((1 - normalizedPan) * 100);
+      const rightPerc = panClamped >= 0 ? 100 : Math.round((1 - Math.abs(normalizedPan)) * 100);
+      document.getElementById('leftVol').innerText = `${leftPerc}%`;
+      document.getElementById('rightVol').innerText = `${rightPerc}%`;
     }
 
     function onDisconnected() {
       updateStatus("Disconnected", false);
-      document.getElementById("btnConnect").style.display = "block";
-      document.getElementById("btnDisconnect").style.display = "none";
-      document.getElementById("valAngle").innerText = "--°";
-      document.getElementById("valDist").innerText = "-- cm";
-      document.getElementById("valZone").innerText = "Clear";
-      updateEarphoneBalance(0);
+      document.getElementById('btnConnect').innerText = "Connect ESP32-Pan";
+      updateSteering(0);
     }
 
     function updateStatus(text, isActive) {
@@ -423,78 +425,11 @@
       else dot.classList.remove("active");
     }
 
-    // --- Packet Parsing & Audio Balancing ---
-    let currentSweepAngle = 50;
-    let obstacleHistory = [];
-
-    function handleSensorStream(event) {
-      const decoder = new TextDecoder("utf-8");
-      const packet = decoder.decode(event.target.value).trim();
-
-      // Expected format: "$<angle>,<distance>"
-      if (packet.startsWith("$")) {
-        const clean = packet.replace("$", "").trim();
-        const parts = clean.split(",");
-        if (parts.length === 2) {
-          const angle = parseInt(parts[0], 10);
-          const distance = parseInt(parts[1], 10);
-
-          if (!isNaN(angle) && !isNaN(distance)) {
-            processSensorData(angle, distance);
-          }
-        }
-      }
-    }
-
-    function processSensorData(angle, distance) {
-      currentSweepAngle = angle;
-
-      document.getElementById("valAngle").innerText = `${angle}°`;
-      document.getElementById("valDist").innerText = distance >= 400 ? ">400 cm" : `${distance} cm`;
-
-      // Cache points for radar visualization (within 250 cm)
-      if (distance < 250) {
-        obstacleHistory.push({ angle, distance, timestamp: Date.now() });
-      }
-
-      // Check obstacle threat and update sound panning
-      if (distance < 200) {
-        // Map 0°-100° to -1.0 (Left) to +1.0 (Right)
-        const pan = ((angle - CENTER_ANGLE) / 50.0);
-        const clampedPan = Math.max(-1.0, Math.min(1.0, pan));
-
-        let zone = "Center";
-        if (clampedPan < -0.25) zone = "Left";
-        else if (clampedPan > 0.25) zone = "Right";
-        document.getElementById("valZone").innerText = `${zone} (${distance}cm)`;
-
-        updateEarphoneBalance(clampedPan);
-      } else {
-        document.getElementById("valZone").innerText = "Path Clear";
-        updateEarphoneBalance(0); // Balanced audio when path is clear
-      }
-    }
-
-    function updateEarphoneBalance(pan) {
-      // 1. Web Audio Stereo Panner (-1.0 to +1.0)
-      if (stereoPanner) {
-        stereoPanner.pan.setValueAtTime(pan, audioCtx.currentTime);
-      }
-
-      // 2. Visual Slider (0% to 100%)
-      const percent = ((pan + 1.0) / 2.0) * 100;
-      document.getElementById("balancePointer").style.left = `${percent}%`;
-
-      // 3. Ear volume percentage indicators
-      const leftPerc = pan <= 0 ? 100 : Math.round((1 - pan) * 100);
-      const rightPerc = pan >= 0 ? 100 : Math.round((1 - Math.abs(pan)) * 100);
-      document.getElementById("leftEarVol").innerText = `${leftPerc}%`;
-      document.getElementById("rightEarVol").innerText = `${rightPerc}%`;
-    }
-
-    // --- Radar Canvas Renderer ---
+    // --- Radar Visualizer Canvas ---
     const canvas = document.getElementById("radarCanvas");
-    const ctx = canvas.getContext("2d");
+    const rCtx = canvas.getContext("2d");
+    let currentAngle = 50;
+    let blips = [];
 
     function resizeCanvas() {
       canvas.width = canvas.parentElement.clientWidth;
@@ -503,65 +438,63 @@
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
 
+    function processRadarPoint(angle, dist) {
+      currentAngle = angle;
+      if (dist < 200) {
+        blips.push({ angle, dist, time: Date.now() });
+      }
+    }
+
     function drawRadar() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      rCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height * 0.92;
-      const maxRadius = Math.min(canvas.width * 0.46, canvas.height * 0.85);
+      const cx = canvas.width / 2;
+      const cy = canvas.height * 0.92;
+      const radius = Math.min(canvas.width * 0.46, canvas.height * 0.85);
 
-      // Range rings
-      const rings = [0.33, 0.66, 1.0];
-      ctx.strokeStyle = "rgba(0, 229, 255, 0.15)";
-      ctx.lineWidth = 1;
-      rings.forEach(r => {
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, maxRadius * r, Math.PI, 2 * Math.PI);
-        ctx.stroke();
+      // Arc rings
+      rCtx.strokeStyle = "rgba(0, 229, 255, 0.15)";
+      [0.33, 0.66, 1.0].forEach(r => {
+        rCtx.beginPath();
+        rCtx.arc(cx, cy, radius * r, Math.PI, 2 * Math.PI);
+        rCtx.stroke();
       });
 
-      // Angle grid lines (0°, 25°, 50°, 75°, 100°)
-      const angles = [0, 25, 50, 75, 100];
-      ctx.strokeStyle = "rgba(0, 229, 255, 0.1)";
-      angles.forEach(deg => {
+      // Rays
+      [0, 25, 50, 75, 100].forEach(deg => {
         const rad = Math.PI + (deg / 100.0) * Math.PI;
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(centerX + maxRadius * Math.cos(rad), centerY + maxRadius * Math.sin(rad));
-        ctx.stroke();
+        rCtx.beginPath();
+        rCtx.moveTo(cx, cy);
+        rCtx.lineTo(cx + radius * Math.cos(rad), cy + radius * Math.sin(rad));
+        rCtx.stroke();
       });
 
-      // Historical obstacle blips (fade out over 1.2s)
+      // Obstacle blips
       const now = Date.now();
-      obstacleHistory = obstacleHistory.filter(pt => now - pt.timestamp < 1200);
-      obstacleHistory.forEach(pt => {
-        const age = now - pt.timestamp;
-        const opacity = (1 - age / 1200).toFixed(2);
-        const rad = Math.PI + (pt.angle / 100.0) * Math.PI;
-        const distRatio = Math.min(pt.distance / 200.0, 1.0);
-        const r = distRatio * maxRadius;
+      blips = blips.filter(b => now - b.time < 1200);
+      blips.forEach(b => {
+        const opacity = (1 - (now - b.time) / 1200).toFixed(2);
+        const rad = Math.PI + (b.angle / 100.0) * Math.PI;
+        const distRatio = Math.min(b.dist / 200.0, 1.0);
+        const r = distRatio * radius;
 
-        const x = centerX + r * Math.cos(rad);
-        const y = centerY + r * Math.sin(rad);
-
-        ctx.fillStyle = `rgba(255, 51, 102, ${opacity})`;
-        ctx.beginPath();
-        ctx.arc(x, y, 5, 0, 2 * Math.PI);
-        ctx.fill();
+        rCtx.fillStyle = `rgba(255, 51, 102, ${opacity})`;
+        rCtx.beginPath();
+        rCtx.arc(cx + r * Math.cos(rad), cy + r * Math.sin(rad), 4, 0, 2 * Math.PI);
+        rCtx.fill();
       });
 
       // Sweep needle
-      const sweepRad = Math.PI + (currentSweepAngle / 100.0) * Math.PI;
-      ctx.strokeStyle = "#00e5ff";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(centerX + maxRadius * Math.cos(sweepRad), centerY + maxRadius * Math.sin(sweepRad));
-      ctx.stroke();
+      const sweepRad = Math.PI + (currentAngle / 100.0) * Math.PI;
+      rCtx.strokeStyle = "#00e5ff";
+      rCtx.lineWidth = 2;
+      rCtx.beginPath();
+      rCtx.moveTo(cx, cy);
+      rCtx.lineTo(cx + radius * Math.cos(sweepRad), cy + radius * Math.sin(sweepRad));
+      rCtx.stroke();
 
       requestAnimationFrame(drawRadar);
     }
-
     drawRadar();
   </script>
 </body>
